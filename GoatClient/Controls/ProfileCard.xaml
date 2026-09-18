@@ -1,0 +1,89 @@
+<UserControl x:Class="GoatClient.Controls.ProfileCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:GoatClient.Controls"
+             xmlns:vm="clr-namespace:GoatClient.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ProfileItemViewModel}">
+    <Border>
+        <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource InteractiveCard}">
+                <Setter Property="Padding" Value="20" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <Setter Property="BorderBrush" Value="{StaticResource AccentGradientBrush}" />
+                        <Setter Property="BorderThickness" Value="1.5" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="44" Height="44" CornerRadius="12" Background="{StaticResource SecondaryBrush}">
+                    <TextBlock Text="{Binding Initial}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <Border Style="{StaticResource Badge}" Margin="0,0,6,0" Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="ACTIVE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        </Border>
+                        <Border Style="{StaticResource Badge}" Background="#1F7A5CFF" Visibility="{Binding IsDefault, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="STARTUP DEFAULT" FontSize="10" FontWeight="Bold" Foreground="#A993FF" />
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <Grid Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="VERSION" Style="{StaticResource SectionLabel}" FontSize="10" />
+                    <TextBlock Text="{Binding Profile.MinecraftVersion}" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,3,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="RAM" Style="{StaticResource SectionLabel}" FontSize="10" />
+                    <TextBlock Text="{Binding RamText}" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,3,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="JAVA" Style="{StaticResource SectionLabel}" FontSize="10" />
+                    <TextBlock Text="{Binding JavaText}" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,3,0,0" />
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Text="{Binding GameDirectory}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,14,0,0"
+                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding GameDirectory}" />
+
+            <DockPanel Margin="0,16,0,0" LastChildFill="False">
+                <Button DockPanel.Dock="Left" Style="{StaticResource ModernButton}" Content="Select" Padding="16,8"
+                        Command="{Binding SelectCommand}" CommandParameter="{Binding}"
+                        Visibility="{Binding IsSelected, Converter={StaticResource InverseBoolToVisibility}}" />
+                <TextBlock DockPanel.Dock="Left" Text="Currently selected" Style="{StaticResource MutedText}" FontSize="12" VerticalAlignment="Center"
+                           Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" ToolTip="Delete" Margin="6,0,0,0"
+                        Command="{Binding DeleteCommand}" CommandParameter="{Binding}">
+                    <Path Data="{StaticResource IconTrash}" Style="{StaticResource IconPath}" Fill="{StaticResource DangerBrush}" />
+                </Button>
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" ToolTip="Duplicate" Margin="6,0,0,0"
+                        Command="{Binding DuplicateCommand}" CommandParameter="{Binding}">
+                    <Path Data="{StaticResource IconCopy}" Style="{StaticResource IconPath}" />
+                </Button>
+                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" ToolTip="Edit"
+                        Command="{Binding EditCommand}" CommandParameter="{Binding}">
+                    <Path Data="{StaticResource IconEdit}" Style="{StaticResource IconPath}" />
+                </Button>
+            </DockPanel>
+        </StackPanel>
+    </Border>
+</UserControl>
