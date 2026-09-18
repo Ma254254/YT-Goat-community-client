@@ -1,0 +1,50 @@
+name: Build GOAT CLIENT
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows Application
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore GoatClient.sln
+
+      - name: Build
+        run: dotnet build GoatClient.sln --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish GoatClient/GoatClient.csproj --configuration Release --runtime win-x64 --self-contained false --output publish
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "publish\*" `
+            -DestinationPath "GoatClient-win-x64.zip" `
+            -Force
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoatClient-Windows
+          path: GoatClient-win-x64.zip
+          if-no-files-found: error
