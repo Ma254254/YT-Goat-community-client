@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>GoatClient</RootNamespace>
+    <AssemblyName>GoatClient</AssemblyName>
+    <ApplicationIcon>Assets\Logo\GoatClient.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Product>GOAT CLIENT</Product>
+    <Company>GOAT CLIENT</Company>
+    <Description>GOAT CLIENT – Minecraft Launcher</Description>
+    <Version>0.2.0</Version>
+    <!-- Allows restoring/building the project on non-Windows CI agents. Running still requires Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>en;de</SatelliteResourceLanguages>
+    <!-- Self-contained multi-file publish is used for releases (see README): stable with WPF and the installer. -->
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Logo\GoatClientLogo.png" />
+    <Resource Include="Assets\Logo\GoatClient.ico" />
+    <None Include="Assets\Logo\GoatClientLogo.original.png" />
+  </ItemGroup>
+
+</Project>
