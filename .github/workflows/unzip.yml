@@ -1,0 +1,5 @@
+name: Unzip file
+on: [push]
+jobs:
+  unzip:
+  # (Hier würde ein Skript stehen, das die ZIP auf dem Server entpackt und committet)
