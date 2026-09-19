@@ -27,6 +27,20 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      # Optional: repository variable GOAT_MS_CLIENT_ID (Settings → Secrets and variables → Actions → Variables).
+      # The Microsoft app ID is public, so a variable (not a secret) is enough.
+      - name: Configure Microsoft app ID
+        if: ${{ vars.GOAT_MS_CLIENT_ID != '' }}
+        shell: pwsh
+        env:
+          CLIENT_ID: ${{ vars.GOAT_MS_CLIENT_ID }}
+        run: |
+          $file = 'GoatClient/microsoft-auth.json'
+          $json = Get-Content $file -Raw | ConvertFrom-Json
+          $json.clientId = $env:CLIENT_ID
+          $json | ConvertTo-Json | Set-Content $file -Encoding utf8
+          Write-Host "microsoft-auth.json configured from repository variable."
+
       - name: Read version
         id: version
         shell: pwsh
@@ -48,6 +62,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path publish/GoatClient.exe)) { throw "GoatClient.exe missing in publish output" }
+          if (-not (Test-Path publish/microsoft-auth.json)) { throw "microsoft-auth.json missing in publish output" }
           $empty = Get-ChildItem publish -Recurse -File | Where-Object Length -eq 0
           if ($empty) { $empty | ForEach-Object { Write-Host $_.FullName }; throw "0-byte files in publish output" }
 

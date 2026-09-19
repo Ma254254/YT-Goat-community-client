@@ -38,6 +38,19 @@ public sealed class DialogService : ObservableObject, IDialogService
         return dialog.ShowDialog() == true ? dialog.FolderName : null;
     }
 
+    public string? PickFile(string title, string filter)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = title,
+            Filter = filter,
+            Multiselect = false,
+            CheckFileExists = true,
+        };
+
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
     private async Task<bool> ShowAsync(string title, string message, string confirmText, string cancelText, bool showCancel, bool isDanger)
     {
         await _gate.WaitAsync();

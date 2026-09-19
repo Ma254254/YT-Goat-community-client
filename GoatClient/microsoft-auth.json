@@ -1,0 +1,4 @@
+{
+  "_comment": "GOAT CLIENT - Microsoft sign-in configuration. Put the Application (client) ID of YOUR Azure app registration here (Azure Portal -> App registrations -> Overview). It is a public ID, not a secret. Direct launch only works after Microsoft/Mojang approved this app for Minecraft. Leave empty to use only the official Minecraft Launcher mode.",
+  "clientId": ""
+}

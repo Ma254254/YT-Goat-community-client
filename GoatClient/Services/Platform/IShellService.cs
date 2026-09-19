@@ -7,4 +7,7 @@ public interface IShellService
 
     /// <summary>Opens an https URL in the default browser.</summary>
     void OpenUrl(string url);
+
+    /// <summary>Restarts GOAT CLIENT (e.g. to apply a new theme).</summary>
+    void RestartApplication();
 }

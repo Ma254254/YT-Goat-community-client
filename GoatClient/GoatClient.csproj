@@ -27,6 +27,8 @@
     <Resource Include="Assets\Logo\GoatClient.ico" />
     <Resource Include="Assets\Logo\ProfileIcon.png" />
     <None Include="Assets\Logo\GoatClientLogo.original.png" />
+    <!-- Microsoft app (client) ID for direct launch – shipped next to GoatClient.exe -->
+    <None Update="microsoft-auth.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

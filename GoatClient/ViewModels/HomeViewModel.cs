@@ -8,6 +8,7 @@ using GoatClient.Services.Java;
 using GoatClient.Services.Minecraft;
 using GoatClient.Services.Navigation;
 using GoatClient.Services.Profiles;
+using GoatClient.Services.Skins;
 using GoatClient.Services.Settings;
 using GoatClient.Services.Status;
 
@@ -20,6 +21,7 @@ public sealed class HomeViewModel : ViewModelBase
     private readonly IMinecraftVersionService _versions;
     private readonly IJavaService _java;
     private readonly IAuthService _auth;
+    private readonly PlayerIdentityService _identity;
 
     private string _versionText = "–";
     private string _profileName = "–";
@@ -36,8 +38,10 @@ public sealed class HomeViewModel : ViewModelBase
         IAuthService auth,
         IStatusService status,
         GameController game,
-        INavigationService navigation)
+        INavigationService navigation,
+        PlayerIdentityService identity)
     {
+        _identity = identity;
         _profiles = profiles;
         _settings = settings;
         _versions = versions;
@@ -55,6 +59,7 @@ public sealed class HomeViewModel : ViewModelBase
         _java.RuntimesChanged += (_, _) => Refresh();
         _versions.VersionsChanged += (_, _) => Refresh();
         _auth.PropertyChanged += (_, _) => Refresh();
+        _identity.PropertyChanged += (_, _) => Refresh();
     }
 
     public IStatusService Status { get; }
@@ -62,7 +67,7 @@ public sealed class HomeViewModel : ViewModelBase
     public GameController Game { get; }
 
     /// <summary>"Welcome back, {real Minecraft name}" – or plain "Welcome back" when signed out.</summary>
-    public string Greeting => _auth.Account is { } account ? $"Welcome back, {account.Username}" : "Welcome back";
+    public string Greeting => _identity.Current is { } account ? $"Welcome back, {account.Username}" : "Welcome back";
 
     public bool IsSignedIn => _auth.State == AuthState.SignedIn;
 

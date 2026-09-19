@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Input;
 using GoatClient.Core.Commands;
 using GoatClient.Models;
+using GoatClient.Services.Auth;
 using GoatClient.Services.Dialogs;
 using GoatClient.Services.Launch;
 using GoatClient.Services.Logging;
@@ -11,12 +12,20 @@ using GoatClient.Services.Notifications;
 using GoatClient.Services.Platform;
 using GoatClient.Services.Profiles;
 using GoatClient.Services.Settings;
+using GoatClient.Services.Theming;
+using System.Windows.Media;
 
 namespace GoatClient.ViewModels;
 
 public sealed record ProfileChoice(Guid Id, string Name);
 
 public sealed record LaunchModeOption(LaunchMode Value, string Label, string Description);
+
+/// <summary>Selectable theme with preview swatches.</summary>
+public sealed record ThemeOption(string Id, string Name, Brush Background, Brush Card, Brush Secondary);
+
+/// <summary>Selectable accent color with preview swatches.</summary>
+public sealed record AccentOption(string Id, string Name, Brush Accent, Brush Accent2);
 
 /// <summary>
 /// Settings page (LAUNCHER, MINECRAFT, APPEARANCE). Every change is saved automatically
@@ -36,6 +45,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly IDialogService _dialogs;
     private readonly INotificationService _notifications;
     private readonly ILogger _logger;
+    private readonly IAuthService _auth;
 
     private CancellationTokenSource? _autoSaveCts;
     private bool _loading;
@@ -53,6 +63,10 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _defaultJvmArguments = string.Empty;
     private bool _showSnapshots;
     private bool _enablePageTransitions;
+    private string _theme = ThemeService.DefaultThemeId;
+    private string _accent = ThemeService.DefaultAccentId;
+    private string _appliedTheme = ThemeService.DefaultThemeId;
+    private string _appliedAccent = ThemeService.DefaultAccentId;
 
     private string _saveState = "All changes saved";
     private bool _hasError;
@@ -67,8 +81,10 @@ public sealed class SettingsViewModel : ViewModelBase
         IShellService shell,
         IDialogService dialogs,
         INotificationService notifications,
-        ILogger logger)
+        ILogger logger,
+        IAuthService auth)
     {
+        _auth = auth;
         _settings = settings;
         _profiles = profiles;
         _versions = versions;
@@ -86,6 +102,10 @@ public sealed class SettingsViewModel : ViewModelBase
         BrowseMinecraftDirectoryCommand = new RelayCommand(BrowseMinecraftDirectory);
         OpenDataFolderCommand = new RelayCommand(() => OpenFolder(_settings.Current.MinecraftDirectory));
         OpenOfficialFolderCommand = new RelayCommand(() => OpenFolder(_official.MinecraftDirectory));
+        RestartCommand = new RelayCommand(() => _shell.RestartApplication());
+
+        // The theme currently on screen (applied at startup).
+        (_appliedTheme, _appliedAccent) = (ThemeService.FindTheme(settings.Current.Theme).Id, ThemeService.FindAccent(settings.Current.Accent).Id);
 
         _profiles.ProfilesChanged += (_, _) => RefreshProfileChoices();
     }
@@ -131,6 +151,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string MicrosoftClientId { get => _microsoftClientId; set => SetAndSave(ref _microsoftClientId, value); }
 
+    /// <summary>"built-in (microsoft-auth.json)", "Settings override" or "not configured".</summary>
+    public string ClientIdSource => _auth.ClientIdSource;
+
     // MINECRAFT
     public string MinecraftDirectory { get => _minecraftDirectory; set => SetAndSave(ref _minecraftDirectory, value); }
 
@@ -165,6 +188,52 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool ShowSnapshots { get => _showSnapshots; set => SetAndSave(ref _showSnapshots, value); }
 
     // APPEARANCE
+    public IReadOnlyList<ThemeOption> ThemeOptions { get; } = ThemeService.Themes
+        .Select(t => new ThemeOption(t.Id, t.Name, Frozen(t.Background), Frozen(t.Card), Frozen(t.Secondary)))
+        .ToList();
+
+    public IReadOnlyList<AccentOption> AccentOptions { get; } = ThemeService.Accents
+        .Select(a => new AccentOption(a.Id, a.Name, Frozen(a.Accent), Frozen(a.Accent2)))
+        .ToList();
+
+    public string Theme
+    {
+        get => _theme;
+        set
+        {
+            if (value is not null)
+            {
+                SetAndSave(ref _theme, value);
+                OnPropertyChanged(nameof(RestartRequired));
+            }
+        }
+    }
+
+    public string Accent
+    {
+        get => _accent;
+        set
+        {
+            if (value is not null)
+            {
+                SetAndSave(ref _accent, value);
+                OnPropertyChanged(nameof(RestartRequired));
+            }
+        }
+    }
+
+    /// <summary>True when the saved theme differs from the one on screen.</summary>
+    public bool RestartRequired => _theme != _appliedTheme || _accent != _appliedAccent;
+
+    public ICommand RestartCommand { get; }
+
+    private static Brush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
     public bool EnablePageTransitions { get => _enablePageTransitions; set => SetAndSave(ref _enablePageTransitions, value); }
 
     public string SaveState { get => _saveState; private set => SetProperty(ref _saveState, value); }
@@ -185,6 +254,7 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         LoadFromSettings();
         OnPropertyChanged(nameof(OfficialLauncherStatus));
+        OnPropertyChanged(nameof(ClientIdSource));
     }
 
     public override void OnNavigatedFrom()
@@ -215,6 +285,8 @@ public sealed class SettingsViewModel : ViewModelBase
             DefaultJvmArguments = s.DefaultJvmArguments;
             ShowSnapshots = s.ShowSnapshots;
             EnablePageTransitions = s.EnablePageTransitions;
+            Theme = ThemeService.FindTheme(s.Theme).Id;
+            Accent = ThemeService.FindAccent(s.Accent).Id;
             RefreshProfileChoices();
             OnPropertyChanged(nameof(Versions));
         }
@@ -336,12 +408,15 @@ public sealed class SettingsViewModel : ViewModelBase
             s.DefaultJvmArguments = DefaultJvmArguments?.Trim() ?? string.Empty;
             s.ShowSnapshots = ShowSnapshots;
             s.EnablePageTransitions = EnablePageTransitions;
+            s.Theme = Theme;
+            s.Accent = Accent;
 
             await _settings.SaveAsync(s);
 
             SaveState = $"All changes saved · {DateTime.Now:HH:mm:ss}";
             HasError = false;
             OnPropertyChanged(nameof(Versions));
+            OnPropertyChanged(nameof(ClientIdSource));
             if (showToast)
             {
                 _notifications.Show(NotificationKind.Success, "Settings saved", "Your settings were written to settings.json.");

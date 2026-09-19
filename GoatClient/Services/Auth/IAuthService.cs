@@ -12,6 +12,9 @@ public interface IAuthService : INotifyPropertyChanged
     /// <summary>True when a Microsoft application (client) ID is configured.</summary>
     bool IsConfigured { get; }
 
+    /// <summary>Where the active Microsoft app ID comes from.</summary>
+    string ClientIdSource { get; }
+
     /// <summary>Loads the cached profile and tries a silent token refresh.</summary>
     Task InitializeAsync(CancellationToken cancellationToken);
 
@@ -25,6 +28,9 @@ public interface IAuthService : INotifyPropertyChanged
     Task<MinecraftSession> GetSessionAsync(CancellationToken cancellationToken);
 
     Task SignOutAsync();
+
+    /// <summary>Reloads name and skin of the signed-in profile (e.g. after a skin upload).</summary>
+    Task RefreshProfileAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>Authentication failure with a user-readable message.</summary>

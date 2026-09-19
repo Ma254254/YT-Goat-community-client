@@ -110,9 +110,12 @@
                             </Border>
                             <Border Style="{StaticResource SettingRow}" Visibility="{Binding IsDirectMode, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
-                                    <TextBlock Text="Microsoft application (client) ID" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                    <TextBlock Style="{StaticResource MutedText}" FontSize="12" Margin="0,2,0,10"
-                                               Text="Only for direct launch. Public ID of your Azure app registration (not a secret); the app must be approved for Minecraft. See README." />
+                                    <TextBlock Text="Microsoft app (client) ID" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                    <TextBlock Style="{StaticResource MutedText}" FontSize="12" Margin="0,2,0,2">
+                                        <Run Text="Active source:" /> <Run Text="{Binding ClientIdSource, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" />
+                                    </TextBlock>
+                                    <TextBlock Style="{StaticResource MutedText}" FontSize="12" Margin="0,0,0,10" TextWrapping="Wrap"
+                                               Text="Normally the ID comes from microsoft-auth.json next to GoatClient.exe. Only enter a value here to override it for testing." />
                                     <TextBox Text="{Binding MicrosoftClientId, UpdateSourceTrigger=LostFocus}" FontFamily="Consolas" />
                                 </StackPanel>
                             </Border>
@@ -181,14 +184,97 @@
                             <Border Style="{StaticResource SettingRow}">
                                 <StackPanel>
                                     <TextBlock Text="Theme" Style="{StaticResource SectionLabel}" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                        <Border Width="28" Height="28" CornerRadius="8" Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1" Margin="0,0,8,0" />
-                                        <Border Width="28" Height="28" CornerRadius="8" Background="{StaticResource CardBrush}" Margin="0,0,8,0" />
-                                        <Border Width="28" Height="28" CornerRadius="8" Background="{StaticResource SecondaryBrush}" Margin="0,0,8,0" />
-                                        <Border Width="28" Height="28" CornerRadius="8" Background="{StaticResource AccentBrush}" Margin="0,0,8,0" />
-                                        <Border Width="28" Height="28" CornerRadius="8" Background="{StaticResource Accent2Brush}" Margin="0,0,8,0" />
-                                        <TextBlock Text="GOAT Dark (only theme in Phase 1)" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                    </StackPanel>
+                                    <ListBox ItemsSource="{Binding ThemeOptions}" SelectedValuePath="Id" SelectedValue="{Binding Theme}"
+                                             Background="Transparent" BorderThickness="0" Margin="0,10,0,0"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Cursor" Value="Hand" />
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListBoxItem">
+                                                            <Border x:Name="Frame" CornerRadius="10" BorderThickness="2" BorderBrush="Transparent" Padding="8" Margin="0,0,10,10" Background="{StaticResource InputBrush}">
+                                                                <ContentPresenter />
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsSelected" Value="True">
+                                                                    <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                                </Trigger>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="Frame" Property="Background" Value="{StaticResource SecondaryBrush}" />
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Width="120">
+                                                    <Border Height="44" CornerRadius="6" Background="{Binding Background}" BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                                                            <Border Width="30" Height="22" CornerRadius="4" Background="{Binding Card}" Margin="0,0,6,0" />
+                                                            <Border Width="30" Height="22" CornerRadius="4" Background="{Binding Secondary}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Name}" Style="{StaticResource BodyText}" FontSize="12" Margin="2,6,0,0" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <TextBlock Text="Accent color" Style="{StaticResource SectionLabel}" Margin="0,8,0,0" />
+                                    <ListBox ItemsSource="{Binding AccentOptions}" SelectedValuePath="Id" SelectedValue="{Binding Accent}"
+                                             Background="Transparent" BorderThickness="0" Margin="0,10,0,0"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Cursor" Value="Hand" />
+                                                <Setter Property="ToolTip" Value="{Binding Name}" />
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListBoxItem">
+                                                            <Border x:Name="Frame" CornerRadius="10" BorderThickness="2" BorderBrush="Transparent" Padding="6" Margin="0,0,10,10" Background="{StaticResource InputBrush}">
+                                                                <ContentPresenter />
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsSelected" Value="True">
+                                                                    <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource TextBrush}" />
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Accent}" />
+                                                    <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Accent2}" Margin="-6,0,0,0" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <Border CornerRadius="10" Background="{StaticResource AccentSoftBrush}" Padding="14,10" Margin="0,4,0,0"
+                                            Visibility="{Binding RestartRequired, Converter={StaticResource BoolToVisibility}}">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource GlowButton}" Content="Restart now" Command="{Binding RestartCommand}" Padding="16,7" FontSize="12" />
+                                            <TextBlock Text="The new theme is applied after a restart of GOAT CLIENT." Style="{StaticResource BodyText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                        </DockPanel>
+                                    </Border>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

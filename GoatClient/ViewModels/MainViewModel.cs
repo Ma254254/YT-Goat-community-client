@@ -8,6 +8,7 @@ using System.Windows.Media.Imaging;
 using GoatClient.Services.Auth;
 using GoatClient.Services.Dialogs;
 using GoatClient.Services.Platform;
+using GoatClient.Services.Skins;
 using GoatClient.Services.Logging;
 using GoatClient.Services.Navigation;
 using GoatClient.Services.Notifications;
@@ -30,6 +31,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IAuthService _auth;
     private readonly SkinTextureLoader _skins;
     private readonly IShellService _shell;
+    private readonly PlayerIdentityService _identity;
     private bool _isInitializing = true;
     private BitmapSource? _accountFace;
     private BitmapSource? _accountHat;
@@ -47,8 +49,10 @@ public sealed class MainViewModel : ObservableObject
         IAuthService auth,
         SkinTextureLoader skins,
         IShellService shell,
-        GameController game)
+        GameController game,
+        PlayerIdentityService identity)
     {
+        _identity = identity;
         _auth = auth;
         _skins = skins;
         _shell = shell;
@@ -79,6 +83,7 @@ public sealed class MainViewModel : ObservableObject
         LoginCommand = new RelayCommand(() => _navigation.Navigate(AppPage.Account), () => !IsInitializing);
         OpenDiscordCommand = new RelayCommand(OpenDiscord);
         _auth.PropertyChanged += (_, _) => OnAccountChanged();
+        _identity.PropertyChanged += (_, _) => OnAccountChanged();
         DismissNotificationCommand = new RelayCommand(p =>
         {
             if (p is NotificationItem item)
@@ -121,7 +126,7 @@ public sealed class MainViewModel : ObservableObject
     public GameController Game { get; }
 
     /// <summary>Real Minecraft name when signed in – never a placeholder account.</summary>
-    public string AccountStatusText => _auth.Account?.Username
+    public string AccountStatusText => _identity.Current?.Username
         ?? (IsOfficialMode ? "Minecraft Launcher" : "Not connected");
 
     private bool IsOfficialMode => _settings.Current.LaunchMode == LaunchMode.OfficialLauncher;
@@ -130,12 +135,14 @@ public sealed class MainViewModel : ObservableObject
     {
         AuthState.SignedIn => "● Connected",
         AuthState.SessionExpired => "Sign in again",
-        _ => IsOfficialMode ? "Sign-in via official launcher" : "Microsoft account",
+        _ => _identity.Source == IdentitySource.LinkedName
+            ? "Linked name · login in launcher"
+            : IsOfficialMode ? "Sign-in via official launcher" : "Microsoft account",
     };
 
     public bool IsAccountConnected => _auth.State == AuthState.SignedIn;
 
-    public string AccountButtonText => _auth.State == AuthState.SignedIn ? "ACCOUNT" : "LOGIN";
+    public string AccountButtonText => _auth.State == AuthState.SignedIn || IsOfficialMode ? "ACCOUNT" : "LOGIN";
 
     public BitmapSource? AccountFace { get => _accountFace; private set => SetProperty(ref _accountFace, value); }
 
@@ -229,7 +236,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(AccountButtonText));
         try
         {
-            var images = await _skins.LoadAsync(_auth.Account?.SkinUrl, CancellationToken.None);
+            var images = await _skins.LoadAsync(_identity.Current?.SkinUrl, CancellationToken.None, _identity.Current?.SkinVariant == "SLIM");
             AccountFace = images?.Face;
             AccountHat = images?.Hat;
         }

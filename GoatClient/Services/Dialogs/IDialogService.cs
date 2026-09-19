@@ -14,4 +14,7 @@ public interface IDialogService : INotifyPropertyChanged
 
     /// <summary>Native folder picker. Returns null if cancelled.</summary>
     string? PickFolder(string? initialDirectory, string title);
+
+    /// <summary>Native file picker. Returns null if cancelled.</summary>
+    string? PickFile(string title, string filter);
 }

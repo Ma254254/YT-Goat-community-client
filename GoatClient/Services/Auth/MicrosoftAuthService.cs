@@ -28,6 +28,7 @@ public sealed class MicrosoftAuthService : ObservableObject, IAuthService
     private readonly HttpClient _http;
     private readonly ISecureTokenStore _tokens;
     private readonly ISettingsService _settings;
+    private readonly MicrosoftAuthConfig _bundled;
     private readonly JsonFileStore _store;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _sessionLock = new(1, 1);
@@ -39,8 +40,9 @@ public sealed class MicrosoftAuthService : ObservableObject, IAuthService
     private AuthState _state = AuthState.SignedOut;
     private MinecraftSession? _session;
 
-    public MicrosoftAuthService(HttpClient http, ISecureTokenStore tokens, ISettingsService settings, JsonFileStore store, ILogger logger)
+    public MicrosoftAuthService(HttpClient http, ISecureTokenStore tokens, ISettingsService settings, JsonFileStore store, MicrosoftAuthConfig bundled, ILogger logger)
     {
+        _bundled = bundled;
         _http = http;
         _tokens = tokens;
         _settings = settings;
@@ -62,7 +64,15 @@ public sealed class MicrosoftAuthService : ObservableObject, IAuthService
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ClientId);
 
-    private string ClientId => _settings.Current.MicrosoftClientId;
+    /// <summary>Settings override (advanced) first, otherwise the ID shipped in microsoft-auth.json.</summary>
+    private string ClientId => !string.IsNullOrWhiteSpace(_settings.Current.MicrosoftClientId)
+        ? _settings.Current.MicrosoftClientId
+        : _bundled.ClientId ?? string.Empty;
+
+    /// <summary>Where the active client ID comes from (for the Settings page).</summary>
+    public string ClientIdSource => !string.IsNullOrWhiteSpace(_settings.Current.MicrosoftClientId)
+        ? "Settings override"
+        : _bundled.Source;
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
@@ -278,7 +288,33 @@ public sealed class MicrosoftAuthService : ObservableObject, IAuthService
         var minecraftToken = Required(minecraft.Body, "access_token");
         var expiresIn = minecraft.Body["expires_in"]?.GetValue<int>() ?? 86400;
 
-        // Real profile – 404 means the account does not own Minecraft Java Edition.
+        var account = await FetchProfileAsync(minecraftToken, cancellationToken);
+
+        if (!string.IsNullOrEmpty(newRefreshToken))
+        {
+            _tokens.Write(RefreshTokenKey, newRefreshToken);
+        }
+
+        await _store.SaveAsync(AppPaths.AccountFile, account, cancellationToken);
+
+        _session = new MinecraftSession(account, minecraftToken, xuid, DateTimeOffset.UtcNow.AddSeconds(expiresIn));
+        Account = account;
+        State = AuthState.SignedIn;
+        _logger.Info($"Signed in as {account.Username}.");
+    }
+
+    public async Task RefreshProfileAsync(CancellationToken cancellationToken)
+    {
+        var session = await GetSessionAsync(cancellationToken);
+        var account = await FetchProfileAsync(session.AccessToken, cancellationToken);
+        _session = session with { Account = account };
+        await _store.SaveAsync(AppPaths.AccountFile, account, cancellationToken);
+        Account = account;
+    }
+
+    /// <summary>Real profile – 404 means the account does not own Minecraft: Java Edition.</summary>
+    private async Task<MinecraftAccount> FetchProfileAsync(string minecraftToken, CancellationToken cancellationToken)
+    {
         using var profileRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.minecraftservices.com/minecraft/profile");
         profileRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", minecraftToken);
         using var profileResponse = await _http.SendAsync(profileRequest, cancellationToken);
@@ -293,23 +329,11 @@ public sealed class MicrosoftAuthService : ObservableObject, IAuthService
 
         var activeSkin = profile["skins"]?.AsArray()
             .FirstOrDefault(s => s?["state"]?.GetValue<string>() == "ACTIVE");
-        var account = new MinecraftAccount(
+        return new MinecraftAccount(
             Required(profile, "name"),
             Required(profile, "id"),
-            activeSkin?["url"]?.GetValue<string>(),
+            activeSkin?["url"]?.GetValue<string>()?.Replace("http://", "https://", StringComparison.OrdinalIgnoreCase),
             activeSkin?["variant"]?.GetValue<string>());
-
-        if (!string.IsNullOrEmpty(newRefreshToken))
-        {
-            _tokens.Write(RefreshTokenKey, newRefreshToken);
-        }
-
-        await _store.SaveAsync(AppPaths.AccountFile, account, cancellationToken);
-
-        _session = new MinecraftSession(account, minecraftToken, xuid, DateTimeOffset.UtcNow.AddSeconds(expiresIn));
-        Account = account;
-        State = AuthState.SignedIn;
-        _logger.Info($"Signed in as {account.Username}.");
     }
 
     private string? ReadRefreshToken()
@@ -336,7 +360,7 @@ public sealed class MicrosoftAuthService : ObservableObject, IAuthService
         if (!IsConfigured)
         {
             throw new AuthException(
-                "Microsoft sign-in is not configured. Enter your Azure application (client) ID in Settings → Launcher (see README).",
+                "Microsoft sign-in is not configured. Put your approved Azure app (client) ID into microsoft-auth.json next to GoatClient.exe (see README).",
                 requiresSignIn: true);
         }
     }

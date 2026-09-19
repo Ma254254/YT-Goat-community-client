@@ -1,5 +1,6 @@
 using GoatClient.Models;
 using GoatClient.Services.Auth;
+using GoatClient.Services.Skins;
 using GoatClient.Services.Java;
 using GoatClient.Services.Logging;
 using GoatClient.Services.Minecraft;
@@ -22,6 +23,8 @@ public sealed class LauncherBootstrapper
     private readonly IMinecraftVersionService _versions;
     private readonly IStatusService _status;
     private readonly IAuthService _auth;
+    private readonly PlayerIdentityService _identity;
+    private readonly SkinLibraryService _skinLibrary;
     private readonly ILogger _logger;
 
     public LauncherBootstrapper(
@@ -31,9 +34,13 @@ public sealed class LauncherBootstrapper
         IMinecraftVersionService versions,
         IStatusService status,
         IAuthService auth,
+        PlayerIdentityService identity,
+        SkinLibraryService skinLibrary,
         ILogger logger)
     {
         _auth = auth;
+        _identity = identity;
+        _skinLibrary = skinLibrary;
         _settings = settings;
         _profiles = profiles;
         _java = java;
@@ -58,6 +65,10 @@ public sealed class LauncherBootstrapper
 
         _status.Set(LauncherStatus.Loading, "Loading Minecraft versions…");
         await RunStepAsync("The official Minecraft version list could not be loaded.", () => _versions.LoadAsync(cancellationToken), warnings);
+
+        _status.Set(LauncherStatus.Loading, "Loading Minecraft profile and skins…");
+        await RunStepAsync("Your linked Minecraft profile could not be loaded.", () => _identity.InitializeAsync(cancellationToken), warnings);
+        await RunStepAsync("The skin library could not be loaded.", () => _skinLibrary.LoadAsync(cancellationToken), warnings);
 
         _status.Set(LauncherStatus.Loading, "Restoring Microsoft sign-in…");
         await RunStepAsync("Your Microsoft sign-in could not be restored.", async () =>

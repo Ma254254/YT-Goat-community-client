@@ -20,7 +20,9 @@ using GoatClient.Services.Platform;
 using GoatClient.Services.Profiles;
 using GoatClient.Services.Settings;
 using GoatClient.Services.Startup;
+using GoatClient.Services.Skins;
 using GoatClient.Services.Status;
+using GoatClient.Services.Theming;
 using GoatClient.ViewModels;
 using GoatClient.Views;
 
@@ -34,6 +36,23 @@ public partial class App : Application
     private INotificationService? _notifications;
     private Mutex? _singleInstance;
     private HttpClient? _http;
+    private bool _restartRequested;
+
+    /// <summary>Closes and restarts GOAT CLIENT (used to apply a new theme).</summary>
+    public void Restart()
+    {
+        _restartRequested = true;
+        if (MainWindow is Views.MainWindow window)
+        {
+            // Normal close path: settings/profiles are flushed by ShutdownAsync.
+            window.SkipCloseConfirmation = true;
+            window.Close();
+        }
+        else
+        {
+            Shutdown(0);
+        }
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -69,6 +88,17 @@ public partial class App : Application
         _logger.Info($"{AppInfo.ProductName} {AppInfo.Version} starting ({Environment.OSVersion}, .NET {Environment.Version}).");
         RegisterGlobalExceptionHandlers();
 
+        // Theme must be applied before the first window/style is created.
+        try
+        {
+            var (theme, accent) = ThemeService.ReadFromSettingsFile();
+            ThemeService.Apply(Resources, theme, accent, _logger);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Theme could not be applied – using GOAT Dark.", ex);
+        }
+
         // Compose services and view models, show the window, then run steps 5–10 asynchronously.
         var mainViewModel = Compose(_logger);
         var window = new MainWindow { DataContext = mainViewModel };
@@ -100,11 +130,14 @@ public partial class App : Application
         var installation = new MinecraftInstallationService(versions, downloads, logger);
         var launcher = new MinecraftLauncherService(installation, logger);
         var official = new OfficialLauncherService(logger);
-        var auth = new MicrosoftAuthService(http, new WindowsCredentialStore(), settings, store, logger);
+        var auth = new MicrosoftAuthService(http, new WindowsCredentialStore(), settings, store, MicrosoftAuthConfig.LoadBundled(logger), logger);
         var skins = new SkinTextureLoader(http);
+        var identity = new PlayerIdentityService(auth, new MojangProfileLookup(http), store, logger);
+        var skinLibrary = new SkinLibraryService(store, logger);
+        var skinUpload = new SkinUploadService(http, auth, logger);
         var profiles = new ProfileService(store, settings, systemInfo, status, logger);
         var navigation = new NavigationService(logger);
-        var bootstrapper = new LauncherBootstrapper(settings, profiles, java, versions, status, auth, logger);
+        var bootstrapper = new LauncherBootstrapper(settings, profiles, java, versions, status, auth, identity, skinLibrary, logger);
         var game = new GameController(profiles, versions, installation, java, launcher, official, auth, settings, dialogs, notifications, status, navigation, shell, logger, Dispatcher, _lifetime.Token);
 
         AsyncRelayCommand.GlobalErrorHandler = ex =>
@@ -114,14 +147,14 @@ public partial class App : Application
             notifications.Show(NotificationKind.Error, "Something went wrong", ex.Message);
         };
 
-        var main = new MainViewModel(navigation, status, dialogs, notifications, settings, profiles, bootstrapper, logger, _lifetime, auth, skins, shell, game);
+        var main = new MainViewModel(navigation, status, dialogs, notifications, settings, profiles, bootstrapper, logger, _lifetime, auth, skins, shell, game, identity);
 
-        navigation.Register(AppPage.Home, () => new HomeViewModel(profiles, settings, versions, java, auth, status, game, navigation));
+        navigation.Register(AppPage.Home, () => new HomeViewModel(profiles, settings, versions, java, auth, status, game, navigation, identity));
         navigation.Register(AppPage.Play, () => new PlayViewModel(profiles, versions, java, systemInfo, settings, notifications, shell, status, navigation, game, logger));
         navigation.Register(AppPage.Profiles, () => new ProfilesViewModel(profiles, settings, versions, java, systemInfo, dialogs, notifications, logger));
-        navigation.Register(AppPage.Skins, () => new SkinsViewModel(auth, skins, navigation, logger));
-        navigation.Register(AppPage.Settings, () => new SettingsViewModel(settings, profiles, versions, official, systemInfo, startup, shell, dialogs, notifications, logger));
-        navigation.Register(AppPage.Account, () => new AccountViewModel(auth, shell, skins, dialogs, notifications, navigation, logger));
+        navigation.Register(AppPage.Skins, () => new SkinsViewModel(identity, skins, skinLibrary, skinUpload, dialogs, notifications, shell, navigation, logger));
+        navigation.Register(AppPage.Settings, () => new SettingsViewModel(settings, profiles, versions, official, systemInfo, startup, shell, dialogs, notifications, logger, auth));
+        navigation.Register(AppPage.Account, () => new AccountViewModel(auth, shell, skins, dialogs, notifications, navigation, logger, identity));
 
         return main;
     }
@@ -178,5 +211,10 @@ public partial class App : Application
         _singleInstance?.ReleaseMutex();
         _singleInstance?.Dispose();
         base.OnExit(e);
+
+        if (_restartRequested && Environment.ProcessPath is { } exe)
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = true });
+        }
     }
 }

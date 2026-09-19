@@ -49,6 +49,12 @@ public sealed class LauncherSettings
     public bool ShowSnapshots { get; set; }
 
     // APPEARANCE
+    /// <summary>Theme id (see ThemeService). Applied at startup.</summary>
+    public string Theme { get; set; } = "goat-dark";
+
+    /// <summary>Accent color id (see ThemeService). Applied at startup.</summary>
+    public string Accent { get; set; } = "goat";
+
     public bool EnablePageTransitions { get; set; } = true;
 
     public LauncherSettings Clone() => (LauncherSettings)MemberwiseClone();

@@ -17,7 +17,8 @@
             <TextBlock Text="Your Minecraft account – signed in securely with Microsoft." Style="{StaticResource PageSubtitle}" />
         </StackPanel>
 
-        <Border Grid.Row="1" Style="{StaticResource ModernCard}" Margin="0,22,0,0" Padding="40">
+        <Border Grid.Row="1" Style="{StaticResource ModernCard}" Margin="0,22,0,0" Padding="40,30">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560">
 
                 <!-- SIGNED IN -->
@@ -62,13 +63,44 @@
 
                 <!-- SIGNED OUT / EXPIRED -->
                 <StackPanel Visibility="{Binding IsSignedOut, Converter={StaticResource BoolToVisibility}}">
+                    <!-- Minecraft name: public profile for name + skin display (no login) -->
+                    <Border Style="{StaticResource ModernCard}" Background="{StaticResource InputBrush}" Padding="20" Margin="0,0,0,28">
+                        <StackPanel>
+                            <TextBlock Text="MINECRAFT NAME" Style="{StaticResource SectionLabel}" />
+                            <TextBlock Style="{StaticResource MutedText}" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,14"
+                                       Text="You sign in inside the official Minecraft Launcher. Link your Minecraft name here so GOAT CLIENT can show your name and skin – it only uses public profile data, no login and no password." />
+
+                            <!-- linked -->
+                            <DockPanel Visibility="{Binding IsLinked, Converter={StaticResource BoolToVisibility}}">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Unlink" Command="{Binding UnlinkCommand}" VerticalAlignment="Center" />
+                                <Border Width="48" Height="48" CornerRadius="10" Background="{StaticResource SecondaryBrush}" ClipToBounds="True">
+                                    <Grid>
+                                        <Image Source="{Binding LinkedFace}" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Fill" />
+                                        <Image Source="{Binding LinkedHat}" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Fill" />
+                                    </Grid>
+                                </Border>
+                                <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding LinkedUsername}" FontSize="18" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding LinkedUuid}" Style="{StaticResource MutedText}" FontSize="11" FontFamily="Consolas" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- not linked -->
+                            <DockPanel Visibility="{Binding IsLinked, Converter={StaticResource InverseBoolToVisibility}}">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GlowButton}" Content="Link" Command="{Binding LinkCommand}" Margin="8,0,0,0" Padding="20,9" />
+                                <TextBox Text="{Binding LinkName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="DIRECT SIGN-IN (OPTIONAL)" Style="{StaticResource SectionLabel}" HorizontalAlignment="Center" Margin="0,0,0,14" />
                     <Border Width="84" Height="84" CornerRadius="42" Background="{StaticResource SecondaryBrush}" HorizontalAlignment="Center">
                         <Path Data="{StaticResource IconAccount}" Fill="{StaticResource MutedBrush}" Width="36" Height="36" Stretch="Uniform" />
                     </Border>
                     <TextBlock Text="{Binding StatusText}" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,22,0,0" />
                     <TextBlock Text="Microsoft Account" Style="{StaticResource BodyText}" FontSize="15" HorizontalAlignment="Center" Margin="0,6,0,0" />
                     <TextBlock Style="{StaticResource MutedText}" TextAlignment="Center" Margin="0,16,0,22" FontSize="13"
-                               Text="Sign in on Microsoft's own website. GOAT CLIENT never sees your password. Only a refresh token is stored – encrypted in the Windows Credential Manager." />
+                               Text="Only needed for direct launch and skin uploads. You sign in on Microsoft's own website; GOAT CLIENT never sees your password. Only a refresh token is stored – encrypted in the Windows Credential Manager." />
 
                     <!-- Device code panel -->
                     <Border Style="{StaticResource ModernCard}" Background="{StaticResource InputBrush}" Padding="20" Margin="0,0,0,20"
@@ -99,11 +131,12 @@
 
                     <TextBlock Style="{StaticResource MutedText}" FontSize="12" TextAlignment="Center" Margin="0,16,0,0"
                                Visibility="{Binding IsConfigured, Converter={StaticResource InverseBoolToVisibility}}">
-                        <Run Text="Microsoft sign-in needs an Azure application (client) ID." />
+                        <Run Text="Direct sign-in is not configured yet (microsoft-auth.json)." />
                         <Hyperlink Command="{Binding OpenSettingsCommand}" Foreground="{StaticResource AccentBrush}">Open Settings</Hyperlink>
                     </TextBlock>
                 </StackPanel>
             </Grid>
+            </ScrollViewer>
         </Border>
     </Grid>
 </UserControl>

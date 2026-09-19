@@ -40,4 +40,10 @@ public sealed class ShellService : IShellService
         _logger.Info($"Opening link: {uri.GetLeftPart(UriPartial.Path)}");
         using var process = Process.Start(new ProcessStartInfo { FileName = uri.AbsoluteUri, UseShellExecute = true });
     }
+
+    public void RestartApplication()
+    {
+        _logger.Info("Restarting GOAT CLIENT.");
+        ((App)System.Windows.Application.Current).Restart();
+    }
 }

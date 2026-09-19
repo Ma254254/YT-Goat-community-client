@@ -9,6 +9,7 @@ using GoatClient.Services.Logging;
 using GoatClient.Services.Navigation;
 using GoatClient.Services.Notifications;
 using GoatClient.Services.Platform;
+using GoatClient.Services.Skins;
 
 namespace GoatClient.ViewModels;
 
@@ -21,6 +22,11 @@ public sealed class AccountViewModel : ViewModelBase
     private readonly IDialogService _dialogs;
     private readonly INotificationService _notifications;
     private readonly ILogger _logger;
+    private readonly PlayerIdentityService _identity;
+    private string _linkName = string.Empty;
+    private bool _isLinking;
+    private BitmapSource? _linkedFace;
+    private BitmapSource? _linkedHat;
 
     private CancellationTokenSource? _signIn;
     private bool _isSigningIn;
@@ -38,8 +44,10 @@ public sealed class AccountViewModel : ViewModelBase
         IDialogService dialogs,
         INotificationService notifications,
         INavigationService navigation,
-        ILogger logger)
+        ILogger logger,
+        PlayerIdentityService identity)
     {
+        _identity = identity;
         _auth = auth;
         _shell = shell;
         _skins = skins;
@@ -54,7 +62,11 @@ public sealed class AccountViewModel : ViewModelBase
         LogoutCommand = new AsyncRelayCommand(SignOutAsync, () => _auth.Account is not null && !IsSigningIn);
         OpenSettingsCommand = new RelayCommand(() => navigation.Navigate(AppPage.Settings));
 
+        LinkCommand = new AsyncRelayCommand(LinkAsync, () => !_isLinking && MojangProfileLookup.IsValidName(LinkName?.Trim()));
+        UnlinkCommand = new AsyncRelayCommand(UnlinkAsync, () => _identity.LinkedProfile is not null);
+
         _auth.PropertyChanged += (_, _) => Refresh();
+        _identity.PropertyChanged += (_, _) => RefreshLinked();
     }
 
     public bool IsConfigured => _auth.IsConfigured;
@@ -97,6 +109,33 @@ public sealed class AccountViewModel : ViewModelBase
 
     public BitmapSource? SkinTexture { get => _texture; private set => SetProperty(ref _texture, value); }
 
+    // ----- Linked Minecraft name (official launcher mode, no login) -----
+    public string LinkName
+    {
+        get => _linkName;
+        set
+        {
+            if (SetProperty(ref _linkName, value))
+            {
+                RelayCommand.Refresh();
+            }
+        }
+    }
+
+    public bool IsLinked => _identity.LinkedProfile is not null;
+
+    public string LinkedUsername => _identity.LinkedProfile?.Username ?? string.Empty;
+
+    public string LinkedUuid => _identity.LinkedProfile?.FormattedUuid ?? string.Empty;
+
+    public BitmapSource? LinkedFace { get => _linkedFace; private set => SetProperty(ref _linkedFace, value); }
+
+    public BitmapSource? LinkedHat { get => _linkedHat; private set => SetProperty(ref _linkedHat, value); }
+
+    public ICommand LinkCommand { get; }
+
+    public ICommand UnlinkCommand { get; }
+
     public ICommand LoginCommand { get; }
 
     public ICommand CancelLoginCommand { get; }
@@ -109,7 +148,66 @@ public sealed class AccountViewModel : ViewModelBase
 
     public ICommand OpenSettingsCommand { get; }
 
-    public override void OnNavigatedTo() => Refresh();
+    public override void OnNavigatedTo()
+    {
+        Refresh();
+        RefreshLinked();
+    }
+
+    private async void RefreshLinked()
+    {
+        OnPropertyChanged(nameof(IsLinked));
+        OnPropertyChanged(nameof(LinkedUsername));
+        OnPropertyChanged(nameof(LinkedUuid));
+        RelayCommand.Refresh();
+        try
+        {
+            var profile = _identity.LinkedProfile;
+            var images = await _skins.LoadAsync(profile?.SkinUrl, CancellationToken.None, profile?.SkinVariant == "SLIM");
+            LinkedFace = images?.Face;
+            LinkedHat = images?.Hat;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("Linked skin could not be loaded.", ex);
+        }
+    }
+
+    private async Task LinkAsync()
+    {
+        _isLinking = true;
+        RelayCommand.Refresh();
+        try
+        {
+            if (await _identity.LinkAsync(LinkName, CancellationToken.None))
+            {
+                _notifications.Show(NotificationKind.Success, "Minecraft name linked", $"Showing the profile and skin of {_identity.LinkedProfile?.Username}.");
+                LinkName = string.Empty;
+            }
+            else
+            {
+                await _dialogs.ShowInfoAsync("Name not found", $"There is no Minecraft: Java Edition account named '{LinkName.Trim()}'.", "Close");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("Linking the Minecraft name failed.", ex);
+            await _dialogs.ShowInfoAsync("Could not link name", "Mojang's profile service could not be reached. Check your internet connection.", "Close");
+        }
+        finally
+        {
+            _isLinking = false;
+            RelayCommand.Refresh();
+        }
+    }
+
+    private async Task UnlinkAsync()
+    {
+        await _identity.UnlinkAsync();
+        LinkedFace = null;
+        LinkedHat = null;
+        _notifications.Show(NotificationKind.Info, "Name unlinked", "GOAT CLIENT no longer shows a Minecraft profile.");
+    }
 
     private void Refresh()
     {
@@ -146,7 +244,7 @@ public sealed class AccountViewModel : ViewModelBase
         {
             if (await _dialogs.ConfirmAsync(
                     "Microsoft sign-in not configured",
-                    "To sign in, GOAT CLIENT needs the application (client) ID of your Azure app registration that is approved for Minecraft. Enter it in Settings → Launcher. See README → Microsoft Authentication.",
+                    "Direct sign-in needs the approved Azure app (client) ID in microsoft-auth.json next to GoatClient.exe. Until then, use the default mode: PLAY opens the official Minecraft Launcher. See README → Microsoft Authentication.",
                     "Open Settings",
                     "Close"))
             {

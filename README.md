@@ -44,6 +44,23 @@ If it is already open when you press PLAY, a newly created profile may only appe
 **2. Direct launch (advanced)**
 GOAT CLIENT installs and starts Minecraft itself (sections below). Needs your own Azure app ID approved for Minecraft.
 
+## Account, skins and themes
+
+**Minecraft name (default mode).** Login stays in the official Minecraft Launcher, so GOAT CLIENT does not know
+your account. On *Account → Minecraft name* you can link your name: GOAT CLIENT then loads the **public** profile
+(name, UUID, skin) from Mojang (`api.mojang.com`, `sessionserver.mojang.com`) – the same data NameMC shows.
+No login, no token. Cached in `config\linked-profile.json`. Used for *Welcome back, <name>*, the sidebar head and the Skins page.
+
+**Skins page.**
+- Current skin as flat front preview (incl. outer layer, slim/classic, legacy 64×32 skins).
+- **Skin library** in `%APPDATA%\GoatClient\skins\`: add PNG files (validated as 64×64 / 64×32 skins), save the current skin, delete.
+- **Apply / Reset** change the skin through the official Minecraft services API – this needs the GOAT CLIENT
+  Microsoft sign-in (direct launch). Without it, *Apply* honestly opens minecraft.net's skin page and the skin folder so
+  you can upload the file there yourself.
+
+**Themes.** *Settings → Appearance*: 4 themes (GOAT Dark, Midnight Blue, OLED Black, Graphite) and 6 accent colors.
+The palette is applied at startup before any window is created; after changing it, *Restart now* applies it.
+
 ## Build (developers)
 
 Requirements: Windows 10/11 x64, Visual Studio 2022 17.8+ or the .NET 8 SDK.
@@ -98,16 +115,24 @@ Security:
 - `config\account.json` contains only non-secret display data (name, UUID, skin URL).
 - Logout deletes the Credential Manager entries and the cached profile.
 
-**Required one-time setup – Azure application (client) ID.** Microsoft requires every third-party launcher
-to use its own app registration; GOAT CLIENT ships none (and no secrets):
+**One-time developer setup – the GOAT CLIENT app (client) ID.** Microsoft requires every launcher with
+its own login to use its own app registration. The ID belongs to *you as the developer* and is shipped
+with the launcher – players never enter it (same as NoRisk, Lunar, Prism …). It is public, not a secret:
 
 1. Azure Portal → *App registrations* → *New registration*; supported account types: **Personal Microsoft accounts** (or "any org + personal").
 2. *Authentication* → enable **Allow public client flows** (needed for the device code flow).
 3. Apply for Minecraft API access for this app (Mojang/Microsoft review for new third-party apps). Until approved,
    `login_with_xbox` is rejected and the app shows *"Minecraft services rejected the sign-in…"*.
-4. Enter the **Application (client) ID** (a GUID) in *Settings → Launcher → Microsoft application (client) ID*.
+4. Put the **Application (client) ID** (a GUID) into the app ID config – either way works:
+   - **In the repository:** edit `GoatClient/microsoft-auth.json` → `"clientId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"` and commit, or
+   - **In GitHub:** *Settings → Secrets and variables → Actions → Variables* → new variable `GOAT_MS_CLIENT_ID`.
+     The workflow writes it into `microsoft-auth.json` during the build.
+5. Build → install → *Settings → Launcher → How PLAY starts Minecraft* → **Direct launch**.
+   PLAY then signs in inside GOAT CLIENT (first time only) and starts Minecraft directly – no official launcher window.
 
-The client ID is public, not a secret; it is stored in `config\settings.json`.
+`microsoft-auth.json` is installed next to `GoatClient.exe` and replaced by every update. For testing, *Settings → Launcher*
+has an optional override field; the page shows which source is active. Never put a *client secret* anywhere – the
+device code flow does not use one.
 
 ## Managed Java
 
@@ -199,5 +224,6 @@ user data deleted only on explicit confirmation.
 - Starting the Microsoft Store / Xbox-app version of the launcher uses its app ID `Microsoft.4297127D64EC6_8wekyb3d8bbwe!Minecraft` – not tested.
 - Vanilla only: no Fabric/Forge/NeoForge, `inheritsFrom` versions are rejected (planned for later phases).
 - No offline/demo mode – a Minecraft-owning Microsoft account is required to play.
-- Skins are shown read-only; upload comes later. Only a dark theme exists.
+- Skin upload/reset needs the GOAT CLIENT sign-in (direct launch); in the default mode the upload happens on minecraft.net.
+- Theme changes need a restart of GOAT CLIENT (no live switching).
 - The Discord button uses a neutral chat icon (not the Discord trademark logo).

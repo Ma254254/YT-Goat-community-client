@@ -114,6 +114,9 @@ public partial class MainWindow : Window
     private void ToggleMaximize()
         => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
+    /// <summary>Set for an app restart (theme change): closes cleanly without the confirmation dialog.</summary>
+    public bool SkipCloseConfirmation { get; set; }
+
     protected override async void OnClosing(CancelEventArgs e)
     {
         if (_closeApproved)
@@ -137,7 +140,7 @@ public partial class MainWindow : Window
         _closeInProgress = true;
         try
         {
-            if (vm.ConfirmBeforeClosing &&
+            if (vm.ConfirmBeforeClosing && !SkipCloseConfirmation &&
                 !await vm.Dialogs.ConfirmAsync("Close GOAT CLIENT?", "Do you really want to close the launcher?", "Close", "Cancel"))
             {
                 return;

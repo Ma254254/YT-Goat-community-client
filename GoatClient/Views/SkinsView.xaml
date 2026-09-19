@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:controls="clr-namespace:GoatClient.Controls"
              xmlns:vm="clr-namespace:GoatClient.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:SkinsViewModel}">
@@ -14,39 +13,111 @@
         </Grid.RowDefinitions>
         <StackPanel>
             <TextBlock Text="SKINS" Style="{StaticResource PageTitle}" />
-            <TextBlock Text="The skin of your signed-in Minecraft account." Style="{StaticResource PageSubtitle}" />
+            <TextBlock Text="Your current skin and your local skin library." Style="{StaticResource PageSubtitle}" />
         </StackPanel>
-        <Border Grid.Row="1" Style="{StaticResource ModernCard}" Margin="0,22,0,0" Padding="40">
-            <Grid HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="640">
-                <!-- Real skin -->
-                <StackPanel Visibility="{Binding HasSkin, Converter={StaticResource BoolToVisibility}}">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Border Width="120" Height="120" CornerRadius="18" Background="{StaticResource SecondaryBrush}" ClipToBounds="True">
+
+        <Grid Grid.Row="1" Margin="0,22,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- CURRENT SKIN -->
+            <Border Style="{StaticResource ModernCard}" Padding="24">
+                <Grid>
+                    <!-- has profile -->
+                    <StackPanel Visibility="{Binding HasProfile, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="CURRENT SKIN" Style="{StaticResource SectionLabel}" />
+                        <Border Height="260" CornerRadius="14" Background="{StaticResource InputBrush}" Margin="0,14,0,0">
                             <Grid>
-                                <Image Source="{Binding Face}" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Fill" />
-                                <Image Source="{Binding Hat}" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Fill" />
+                                <Image Source="{Binding Front}" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Uniform" Margin="24" />
+                                <TextBlock Text="No skin loaded" Style="{StaticResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Visibility="{Binding HasSkin, Converter={StaticResource InverseBoolToVisibility}}" />
                             </Grid>
                         </Border>
-                        <Border Width="256" Height="256" CornerRadius="12" Background="{StaticResource InputBrush}" Margin="28,0,0,0" Padding="8">
-                            <Image Source="{Binding SkinTexture}" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Uniform" ToolTip="Skin texture" />
-                        </Border>
+                        <TextBlock Text="{Binding Username}" FontSize="22" FontWeight="Bold" Margin="0,16,0,0" />
+                        <TextBlock Style="{StaticResource MutedText}" FontSize="12"><Run Text="Model:" /> <Run Text="{Binding SkinModel, Mode=OneWay}" /></TextBlock>
+                        <TextBlock Text="{Binding SourceText}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button Style="{StaticResource ModernButton}" Content="Save to library" Command="{Binding SaveCurrentCommand}" Margin="0,0,8,8" />
+                            <Button Style="{StaticResource ModernButton}" Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8" />
+                            <Button Style="{StaticResource DangerButton}" Content="Reset skin" Command="{Binding ResetSkinCommand}" Margin="0,0,8,8"
+                                    Visibility="{Binding CanUpload, Converter={StaticResource BoolToVisibility}}" />
+                        </WrapPanel>
                     </StackPanel>
-                    <TextBlock Text="{Binding Username}" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,22,0,0" />
-                    <TextBlock HorizontalAlignment="Center" Style="{StaticResource MutedText}"><Run Text="Model:" /> <Run Text="{Binding SkinModel, Mode=OneWay}" /></TextBlock>
-                </StackPanel>
 
-                <!-- Not signed in / no skin -->
-                <StackPanel Visibility="{Binding HasSkin, Converter={StaticResource InverseBoolToVisibility}}">
-                    <Border Width="84" Height="84" CornerRadius="24" Background="{StaticResource AccentSoftBrush}" HorizontalAlignment="Center">
-                        <Path Data="{StaticResource IconSkins}" Fill="{StaticResource AccentBrush}" Width="38" Height="38" Stretch="Uniform" />
-                    </Border>
-                    <TextBlock Text="No skin to show" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,22,0,0" />
-                    <TextBlock Style="{StaticResource MutedText}" TextAlignment="Center" Margin="0,10,0,18" FontSize="14"
-                               Text="Sign in with your Microsoft account to see your current Minecraft skin." />
-                    <Button Style="{StaticResource ModernButton}" Content="Go to Account" Command="{Binding OpenAccountCommand}" HorizontalAlignment="Center" />
-                </StackPanel>
+                    <!-- no profile -->
+                    <StackPanel VerticalAlignment="Center" Visibility="{Binding HasProfile, Converter={StaticResource InverseBoolToVisibility}}">
+                        <Border Width="72" Height="72" CornerRadius="20" Background="{StaticResource AccentSoftBrush}" HorizontalAlignment="Center">
+                            <Path Data="{StaticResource IconSkins}" Fill="{StaticResource AccentBrush}" Width="32" Height="32" Stretch="Uniform" />
+                        </Border>
+                        <TextBlock Text="No Minecraft profile" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                        <TextBlock Style="{StaticResource MutedText}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,16"
+                                   Text="Link your Minecraft name on the Account page to show your skin here – no login needed." />
+                        <Button Style="{StaticResource GlowButton}" Content="Go to Account" Command="{Binding OpenAccountCommand}" HorizontalAlignment="Center" Padding="22,10" />
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-            </Grid>
-        </Border>
+            <!-- LIBRARY -->
+            <Border Grid.Column="2" Style="{StaticResource ModernCard}" Padding="24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding NewSkinSlim}" VerticalAlignment="Center" Margin="0,0,14,0">
+                                <TextBlock Text="Slim model" Style="{StaticResource BodyText}" FontSize="12" />
+                            </CheckBox>
+                            <Button Style="{StaticResource IconButton}" Command="{Binding OpenSkinFolderCommand}" ToolTip="Open skin folder" Margin="0,0,8,0">
+                                <Path Data="{StaticResource IconFolder}" Style="{StaticResource IconPath}" />
+                            </Button>
+                            <Button Style="{StaticResource GlowButton}" Content="+ Add skin" Command="{Binding AddSkinCommand}" Padding="18,9" FontSize="13" />
+                        </StackPanel>
+                        <TextBlock Text="SKIN LIBRARY" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Grid.Row="1" Text="{Binding UploadHint}" Style="{StaticResource MutedText}" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,14" />
+
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Library}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="168" CornerRadius="12" Background="{StaticResource InputBrush}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1"
+                                            Padding="12" Margin="0,0,12,12">
+                                        <StackPanel>
+                                            <Image Source="{Binding Front}" Height="128" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Uniform" />
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource BodyText}" FontWeight="SemiBold" Margin="0,10,0,0" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding ModelText}" Style="{StaticResource MutedText}" FontSize="11" />
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button Style="{StaticResource ModernButton}" Content="Apply" Command="{Binding ApplyCommand}" Padding="0,7" />
+                                                <Button Grid.Column="1" Style="{StaticResource IconButton}" Command="{Binding DeleteCommand}" ToolTip="Delete" Margin="6,0,0,0">
+                                                    <Path Data="{StaticResource IconTrash}" Style="{StaticResource IconPath}" />
+                                                </Button>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <TextBlock Grid.Row="2" Style="{StaticResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                               Visibility="{Binding IsLibraryEmpty, Converter={StaticResource BoolToVisibility}}"
+                               Text="Your library is empty. Add a skin PNG (64×64) or save your current skin." />
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
