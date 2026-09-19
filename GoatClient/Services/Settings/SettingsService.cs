@@ -79,15 +79,8 @@ public sealed class SettingsService : ISettingsService
             settings.MinecraftDirectory = AppPaths.DefaultGameDirectory;
         }
 
-        if (string.IsNullOrWhiteSpace(settings.DownloadDirectory) || !Path.IsPathFullyQualified(settings.DownloadDirectory))
-        {
-            settings.DownloadDirectory = AppPaths.Downloads;
-        }
-
-        settings.MaxParallelDownloads = Math.Clamp(settings.MaxParallelDownloads, 1, 32);
-        settings.DownloadRetryCount = Math.Clamp(settings.DownloadRetryCount, 0, 10);
         settings.MicrosoftClientId = settings.MicrosoftClientId?.Trim() ?? string.Empty;
-        settings.SchemaVersion = 2;
+        settings.SchemaVersion = 3;
 
         if (string.IsNullOrWhiteSpace(settings.DefaultVersion))
         {

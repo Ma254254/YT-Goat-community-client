@@ -2,24 +2,36 @@ using GoatClient.Core.Constants;
 
 namespace GoatClient.Models;
 
+/// <summary>How PLAY starts Minecraft.</summary>
+public enum LaunchMode
+{
+    /// <summary>
+    /// Default. GOAT CLIENT creates its profile in the official Minecraft Launcher and opens it.
+    /// Sign-in, downloads and Java are handled by the official launcher – no Azure app needed.
+    /// </summary>
+    OfficialLauncher,
+
+    /// <summary>GOAT CLIENT installs and starts Minecraft itself (needs an approved Azure client ID).</summary>
+    Direct,
+}
+
 /// <summary>Root object of config\settings.json.</summary>
 public sealed class LauncherSettings
 {
     public const string FallbackVersion = "1.21.11";
 
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     // LAUNCHER
+    public LaunchMode LaunchMode { get; set; } = LaunchMode.OfficialLauncher;
+
     public bool LaunchWithWindows { get; set; }
 
     public bool Notifications { get; set; } = true;
 
     public bool ConfirmBeforeClosing { get; set; }
 
-    /// <summary>
-    /// Public client ID of the Azure app registration used for Microsoft sign-in.
-    /// This is not a secret (public client, device code flow) – but it must be registered by the owner.
-    /// </summary>
+    /// <summary>Only used in <see cref="LaunchMode.Direct"/>. Public Azure client ID, not a secret.</summary>
     public string MicrosoftClientId { get; set; } = string.Empty;
 
     // MINECRAFT
@@ -36,20 +48,8 @@ public sealed class LauncherSettings
 
     public bool ShowSnapshots { get; set; }
 
-    // JAVA
-    public bool InstallMissingRuntimeAutomatically { get; set; } = true;
-
-    // DOWNLOADS
-    public string DownloadDirectory { get; set; } = AppPaths.Downloads;
-
-    public int MaxParallelDownloads { get; set; } = 8;
-
-    public int DownloadRetryCount { get; set; } = 3;
-
     // APPEARANCE
     public bool EnablePageTransitions { get; set; } = true;
-
-    public bool ShowHomeLogo { get; set; } = true;
 
     public LauncherSettings Clone() => (LauncherSettings)MemberwiseClone();
 }

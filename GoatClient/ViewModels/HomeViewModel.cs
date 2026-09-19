@@ -66,6 +66,11 @@ public sealed class HomeViewModel : ViewModelBase
 
     public bool IsSignedIn => _auth.State == AuthState.SignedIn;
 
+    /// <summary>Direct launch needs a GOAT CLIENT sign-in; the official launcher handles its own.</summary>
+    public bool ShowSignInHint => Game.IsDirectMode && !IsSignedIn;
+
+    public bool ShowOfficialHint => !Game.IsDirectMode;
+
     public string ProductName => AppInfo.ProductName;
 
     public string Tagline => AppInfo.Tagline;
@@ -94,7 +99,8 @@ public sealed class HomeViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(Greeting));
         OnPropertyChanged(nameof(IsSignedIn));
-        ShowLogo = _settings.Current.ShowHomeLogo;
+        OnPropertyChanged(nameof(ShowSignInHint));
+        OnPropertyChanged(nameof(ShowOfficialHint));
         Game.RefreshState();
 
         var profile = _profiles.SelectedProfile;
@@ -106,6 +112,13 @@ public sealed class HomeViewModel : ViewModelBase
         ProfileName = profile.Name;
         VersionText = profile.MinecraftVersion;
         RamText = $"{profile.RamMb / 1024} GB";
+
+        if (!Game.IsDirectMode)
+        {
+            JavaTitle = "Handled by the official Minecraft Launcher";
+            JavaDetail = "Sign-in, downloads and Java are managed there. RAM and JVM arguments are applied to your GOAT CLIENT profile.";
+            return;
+        }
 
         var required = _versions.Find(profile.MinecraftVersion)?.RequiredJavaMajor;
         int? major = profile.JavaPreference switch

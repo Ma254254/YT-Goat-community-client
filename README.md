@@ -23,6 +23,27 @@ Updating: run a newer `GoatClient-Setup.exe` – the existing installation is de
 Uninstalling: *Windows Settings → Apps → Installed apps → GOAT CLIENT → Uninstall*. The uninstaller **asks**
 whether `%APPDATA%\GoatClient` (Minecraft files, instances/worlds, settings, logs) should be deleted; the default is *No*.
 
+## Launch modes
+
+GOAT CLIENT has two ways to start Minecraft (*Settings → Launcher → How PLAY starts Minecraft*):
+
+**1. Official Minecraft Launcher (default, recommended)**
+PLAY writes a profile **"GOAT CLIENT - <profile name>"** into `%APPDATA%\.minecraft\launcher_profiles.json`
+(version, game directory, RAM as `-Xmx`, JVM arguments, GOAT CLIENT logo as icon) and opens the official launcher.
+You sign in and press *Play* there; downloads and Java are handled by the official launcher.
+No Azure app is needed. This is the same mechanism the Fabric installer uses.
+
+Safety:
+- Only profiles whose key starts with `goatclient-` are created, updated or removed. Other profiles are never touched.
+- A backup `launcher_profiles.json.goatbackup` is written before every change; the file is replaced atomically.
+- The official launcher's account files are never read or modified. GOAT CLIENT never sees your login.
+
+Requirement: the official Minecraft Launcher (minecraft.net installer or Microsoft Store / Xbox app).
+If it is already open when you press PLAY, a newly created profile may only appear after restarting it.
+
+**2. Direct launch (advanced)**
+GOAT CLIENT installs and starts Minecraft itself (sections below). Needs your own Azure app ID approved for Minecraft.
+
 ## Build (developers)
 
 Requirements: Windows 10/11 x64, Visual Studio 2022 17.8+ or the .NET 8 SDK.
@@ -63,7 +84,7 @@ installer/           Inno Setup script + wizard images generated from the offici
 
 Services are composed manually in `App.xaml.cs` (no DI container). One shared `HttpClient` is used.
 
-## Microsoft Authentication
+## Microsoft Authentication (direct launch only)
 
 Flow: **Microsoft identity (OAuth 2.0 device code) → Xbox Live → XSTS → Minecraft Services → Minecraft profile.**
 
@@ -144,6 +165,8 @@ Phase 1 files (`settings.json`, `profiles.json` in the root) are migrated automa
 
 | Problem | Solution |
 |---|---|
+| "Official Minecraft Launcher was not found" | Install it from minecraft.net (or Microsoft Store / Xbox app) and start it once. |
+| GOAT profile missing in official launcher | Close the official launcher completely and press PLAY in GOAT CLIENT again. |
 | "Microsoft sign-in is not configured" | Enter your Azure client ID (see above). |
 | "Minecraft services rejected the sign-in" | The Azure app is not (yet) approved for Minecraft. |
 | "no Xbox profile" / "child account" | Create an Xbox profile at xbox.com / add the account to a Microsoft family. |
@@ -171,7 +194,9 @@ user data deleted only on explicit confirmation.
 
 - **Not built or tested yet**: restore/build/publish, the installer, sign-in, installation and launch have not been executed
   (no Windows/.NET/network in the development environment). Expect compile fixes in the first CI run.
-- Microsoft sign-in requires your own Azure app registration **approved for Minecraft**.
+- Direct launch requires your own Azure app registration **approved for Minecraft**; the default mode does not.
+- Official-launcher mode: GOAT CLIENT cannot see whether Minecraft is running or crashed (the official launcher starts the game).
+- Starting the Microsoft Store / Xbox-app version of the launcher uses its app ID `Microsoft.4297127D64EC6_8wekyb3d8bbwe!Minecraft` – not tested.
 - Vanilla only: no Fabric/Forge/NeoForge, `inheritsFrom` versions are rejected (planned for later phases).
 - No offline/demo mode – a Minecraft-owning Microsoft account is required to play.
 - Skins are shown read-only; upload comes later. Only a dark theme exists.

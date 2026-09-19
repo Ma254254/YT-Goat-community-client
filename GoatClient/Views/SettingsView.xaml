@@ -58,10 +58,6 @@
                                             IsActive="{Binding SelectedCategory, Converter={StaticResource EqualsConverter}, ConverterParameter=LAUNCHER}" />
                     <controls:SidebarButton Content="MINECRAFT" Icon="{StaticResource IconCube}" Command="{Binding SelectCategoryCommand}" CommandParameter="MINECRAFT"
                                             IsActive="{Binding SelectedCategory, Converter={StaticResource EqualsConverter}, ConverterParameter=MINECRAFT}" />
-                    <controls:SidebarButton Content="JAVA" Icon="{StaticResource IconJava}" Command="{Binding SelectCategoryCommand}" CommandParameter="JAVA"
-                                            IsActive="{Binding SelectedCategory, Converter={StaticResource EqualsConverter}, ConverterParameter=JAVA}" />
-                    <controls:SidebarButton Content="DOWNLOADS" Icon="{StaticResource IconDownload}" Command="{Binding SelectCategoryCommand}" CommandParameter="DOWNLOADS"
-                                            IsActive="{Binding SelectedCategory, Converter={StaticResource EqualsConverter}, ConverterParameter=DOWNLOADS}" />
                     <controls:SidebarButton Content="APPEARANCE" Icon="{StaticResource IconSkins}" Command="{Binding SelectCategoryCommand}" CommandParameter="APPEARANCE"
                                             IsActive="{Binding SelectedCategory, Converter={StaticResource EqualsConverter}, ConverterParameter=APPEARANCE}" />
                 </StackPanel>
@@ -73,6 +69,21 @@
                         <!-- LAUNCHER -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibility}, ConverterParameter=LAUNCHER}">
                             <TextBlock Text="Launcher" Style="{StaticResource CardTitle}" FontSize="18" Margin="0,0,0,16" />
+
+                            <Border Style="{StaticResource SettingRow}">
+                                <StackPanel>
+                                    <TextBlock Text="How PLAY starts Minecraft" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="LaunchModeBox" ItemsSource="{Binding LaunchModes}" SelectedValuePath="Value" SelectedValue="{Binding LaunchMode}" DisplayMemberPath="Label" Margin="0,10,0,8" />
+                                    <TextBlock Style="{StaticResource MutedText}" FontSize="12"
+                                               Text="{Binding SelectedItem.Description, ElementName=LaunchModeBox}" />
+                                    <DockPanel Margin="0,10,0,0">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding OpenOfficialFolderCommand}" ToolTip="Open .minecraft folder">
+                                            <Path Data="{StaticResource IconFolder}" Style="{StaticResource IconPath}" />
+                                        </Button>
+                                        <TextBlock Text="{Binding OfficialLauncherStatus}" Style="{StaticResource MutedText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
                             <Border Style="{StaticResource SettingRow}">
                                 <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding LaunchWithWindows}">
                                     <StackPanel>
@@ -97,11 +108,11 @@
                                     </StackPanel>
                                 </CheckBox>
                             </Border>
-                            <Border Style="{StaticResource SettingRow}">
+                            <Border Style="{StaticResource SettingRow}" Visibility="{Binding IsDirectMode, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <TextBlock Text="Microsoft application (client) ID" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
                                     <TextBlock Style="{StaticResource MutedText}" FontSize="12" Margin="0,2,0,10"
-                                               Text="Public ID of the Azure app registration used for Microsoft sign-in (device code flow). It is not a secret, but the app must be approved for Minecraft. See README." />
+                                               Text="Only for direct launch. Public ID of your Azure app registration (not a secret); the app must be approved for Minecraft. See README." />
                                     <TextBox Text="{Binding MicrosoftClientId, UpdateSourceTrigger=LostFocus}" FontFamily="Consolas" />
                                 </StackPanel>
                             </Border>
@@ -156,85 +167,6 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- JAVA -->
-                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibility}, ConverterParameter=JAVA}">
-                            <TextBlock Text="Java runtime" Style="{StaticResource CardTitle}" FontSize="18" Margin="0,0,0,4" />
-                            <TextBlock Text="Managed by GOAT CLIENT · Automatic. You never need to install Java yourself." Style="{StaticResource MutedText}" Margin="0,0,0,16" />
-
-                            <Border Style="{StaticResource SettingRow}">
-                                <StackPanel>
-                                    <TextBlock Text="Runtime folder" Style="{StaticResource SectionLabel}" />
-                                    <DockPanel Margin="0,6,0,0">
-                                        <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding OpenRuntimeFolderCommand}" ToolTip="Open folder">
-                                            <Path Data="{StaticResource IconFolder}" Style="{StaticResource IconPath}" />
-                                        </Button>
-                                        <TextBlock Text="{Binding RuntimeDirectory}" Style="{StaticResource BodyText}" VerticalAlignment="Center" />
-                                    </DockPanel>
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource SettingRow}">
-                                <StackPanel>
-                                    <TextBlock Text="Managed runtimes" Style="{StaticResource SectionLabel}" />
-                                    <TextBlock Text="{Binding ManagedRuntimeText}" Style="{StaticResource BodyText}" Margin="0,6,0,0" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource SettingRow}">
-                                <StackPanel>
-                                    <TextBlock Text="Automatic provisioning" Style="{StaticResource SectionLabel}" />
-                                    <TextBlock Text="{Binding ProvisioningText}" Style="{StaticResource BodyText}" Margin="0,6,0,0" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource SettingRow}">
-                                <StackPanel>
-                                    <TextBlock Text="System Java (optional information)" Style="{StaticResource SectionLabel}" />
-                                    <TextBlock Text="{Binding SystemJavaText}" Style="{StaticResource BodyText}" Margin="0,6,0,0" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource SettingRow}">
-                                <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding InstallMissingRuntimeAutomatically}">
-                                    <StackPanel>
-                                        <TextBlock Text="Install missing runtime automatically" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                        <TextBlock Text="When off, GOAT CLIENT asks before downloading a Java runtime." Style="{StaticResource MutedText}" FontSize="12" />
-                                    </StackPanel>
-                                </CheckBox>
-                            </Border>
-                            <TextBlock Text="Available Java versions" Style="{StaticResource FieldLabel}" Margin="0,8,0,8" />
-                            <StackPanel Orientation="Horizontal">
-                                <Button Style="{StaticResource ModernButton}" Content="Install / verify Java 21" Command="{Binding InstallJavaCommand}" CommandParameter="21" Margin="0,0,8,0" />
-                                <Button Style="{StaticResource ModernButton}" Content="Install / verify Java 17" Command="{Binding InstallJavaCommand}" CommandParameter="17" Margin="0,0,8,0" />
-                                <Button Style="{StaticResource GhostButton}" Content="Check runtimes again" Command="{Binding RescanJavaCommand}" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding JavaInstallStatus}" Style="{StaticResource MutedText}" FontSize="12" Margin="2,8,0,0" />
-                        </StackPanel>
-
-                        <!-- DOWNLOADS -->
-                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibility}, ConverterParameter=DOWNLOADS}">
-                            <TextBlock Text="Downloads" Style="{StaticResource CardTitle}" FontSize="18" Margin="0,0,0,4" />
-                            <TextBlock Text="All game files come from official Mojang servers and are verified with SHA-1." Style="{StaticResource MutedText}" Margin="0,0,0,16" />
-
-                            <TextBlock Text="Download directory (temporary partial files)" Style="{StaticResource FieldLabel}" />
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Style="{StaticResource ModernButton}" Content="Browse…" Command="{Binding BrowseDownloadDirectoryCommand}" Margin="8,0,0,0" />
-                                <TextBox Text="{Binding DownloadDirectory, UpdateSourceTrigger=LostFocus}" />
-                            </DockPanel>
-
-                            <Grid Margin="0,18,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="14" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="Maximum parallel downloads" Style="{StaticResource FieldLabel}" />
-                                    <ComboBox ItemsSource="{Binding ParallelDownloadOptions}" SelectedItem="{Binding MaxParallelDownloads}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Download retry count" Style="{StaticResource FieldLabel}" />
-                                    <ComboBox ItemsSource="{Binding RetryOptions}" SelectedItem="{Binding DownloadRetryCount}" />
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-
                         <!-- APPEARANCE -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibility}, ConverterParameter=APPEARANCE}">
                             <TextBlock Text="Appearance" Style="{StaticResource CardTitle}" FontSize="18" Margin="0,0,0,16" />
@@ -243,14 +175,6 @@
                                     <StackPanel>
                                         <TextBlock Text="Animations" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
                                         <TextBlock Text="Subtle fade when switching pages." Style="{StaticResource MutedText}" FontSize="12" />
-                                    </StackPanel>
-                                </CheckBox>
-                            </Border>
-                            <Border Style="{StaticResource SettingRow}">
-                                <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding ShowHomeLogo}">
-                                    <StackPanel>
-                                        <TextBlock Text="Show logo on Home" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
-                                        <TextBlock Text="Displays the GOAT CLIENT logo in the Home hero section." Style="{StaticResource MutedText}" FontSize="12" />
                                     </StackPanel>
                                 </CheckBox>
                             </Border>

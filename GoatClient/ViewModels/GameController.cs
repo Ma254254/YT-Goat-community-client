@@ -34,6 +34,7 @@ public sealed class GameController : ObservableObject
     private readonly IMinecraftInstallationService _installation;
     private readonly IJavaService _java;
     private readonly IMinecraftLauncherService _launcher;
+    private readonly IOfficialLauncherService _official;
     private readonly IAuthService _auth;
     private readonly ISettingsService _settings;
     private readonly IDialogService _dialogs;
@@ -59,6 +60,7 @@ public sealed class GameController : ObservableObject
         IMinecraftInstallationService installation,
         IJavaService java,
         IMinecraftLauncherService launcher,
+        IOfficialLauncherService official,
         IAuthService auth,
         ISettingsService settings,
         IDialogService dialogs,
@@ -75,6 +77,7 @@ public sealed class GameController : ObservableObject
         _installation = installation;
         _java = java;
         _launcher = launcher;
+        _official = official;
         _auth = auth;
         _settings = settings;
         _dialogs = dialogs;
@@ -88,13 +91,14 @@ public sealed class GameController : ObservableObject
 
         PrimaryCommand = new AsyncRelayCommand(PrimaryAsync, () => !IsBusy && !_launcher.IsRunning && _profiles.SelectedProfile is not null);
         InstallCommand = new AsyncRelayCommand(() => RunInstallAsync(repair: false), () => !IsBusy && !_launcher.IsRunning);
-        RepairCommand = new AsyncRelayCommand(() => RunInstallAsync(repair: true), () => !IsBusy && !_launcher.IsRunning && _profiles.SelectedProfile is not null);
+        RepairCommand = new AsyncRelayCommand(() => RunInstallAsync(repair: true), () => IsDirectMode && !IsBusy && !_launcher.IsRunning && _profiles.SelectedProfile is not null);
         CancelCommand = new RelayCommand(() => _operation?.Cancel(), () => IsBusy);
         OpenLaunchLogCommand = new RelayCommand(OpenLaunchLog);
 
         _profiles.ProfilesChanged += (_, _) => RefreshState();
         _versions.VersionsChanged += (_, _) => RefreshState();
         _java.RuntimesChanged += (_, _) => RefreshState();
+        _settings.SettingsChanged += (_, _) => RefreshState();
         _launcher.PropertyChanged += OnLauncherChanged;
         _launcher.LogLine += (_, line) => _dispatcher.InvokeAsync(() => AppendLog(line));
         _launcher.ProcessExited += (_, code) => _dispatcher.InvokeAsync(() => OnProcessExited(code));
@@ -137,10 +141,15 @@ public sealed class GameController : ObservableObject
         _ => "Not Running",
     };
 
+    /// <summary>True when GOAT CLIENT installs and starts Minecraft itself.</summary>
+    public bool IsDirectMode => _settings.Current.LaunchMode == LaunchMode.Direct;
+
     public bool IsSelectedInstalled
         => _profiles.SelectedProfile is { } p && _installation.IsInstalled(p.MinecraftVersion);
 
-    public string InstallStateText => IsSelectedInstalled ? "Installed" : "Not Installed";
+    public string InstallStateText => !IsDirectMode
+        ? "Via Minecraft Launcher"
+        : IsSelectedInstalled ? "Installed" : "Not Installed";
 
     /// <summary>INSTALL / PLAY / RUNNING – derived from the real installation and process state.</summary>
     public string PrimaryText
@@ -157,7 +166,7 @@ public sealed class GameController : ObservableObject
                 return "WORKING…";
             }
 
-            return IsSelectedInstalled ? "PLAY" : "INSTALL";
+            return !IsDirectMode || IsSelectedInstalled ? "PLAY" : "INSTALL";
         }
     }
 
@@ -173,6 +182,7 @@ public sealed class GameController : ObservableObject
 
     public void RefreshState()
     {
+        OnPropertyChanged(nameof(IsDirectMode));
         OnPropertyChanged(nameof(IsSelectedInstalled));
         OnPropertyChanged(nameof(InstallStateText));
         OnPropertyChanged(nameof(PrimaryText));
@@ -184,6 +194,12 @@ public sealed class GameController : ObservableObject
         var profile = _profiles.SelectedProfile;
         if (profile is null)
         {
+            return;
+        }
+
+        if (!IsDirectMode)
+        {
+            await RunOfficialLauncherAsync(profile);
             return;
         }
 
@@ -208,11 +224,41 @@ public sealed class GameController : ObservableObject
         {
             var version = await _installation.InstallAsync(profile.MinecraftVersion, repair, CreateProgress(), ct);
             var requirement = _java.ResolveRequirement(profile.JavaPreference, version.JavaRequirement);
-            await EnsureJavaAsync(requirement, verify: repair, askFirst: false, ct);
+            await EnsureJavaAsync(requirement, verify: repair, ct);
 
             _notifications.Show(NotificationKind.Success,
                 repair ? "Repair completed" : "Minecraft installation completed.",
                 $"Minecraft {version.Id} is ready to play.");
+        });
+    }
+
+    /// <summary>
+    /// Default mode: create/update the GOAT CLIENT profile in the official Minecraft Launcher and open it.
+    /// Sign-in, downloads and Java are handled by the official launcher.
+    /// </summary>
+    private async Task RunOfficialLauncherAsync(LauncherProfile profile)
+    {
+        await RunOperationAsync("Opening Minecraft Launcher", async ct =>
+        {
+            if (!_official.IsInstalled)
+            {
+                throw new OfficialLauncherNotFoundException();
+            }
+
+            SetStage("Updating GOAT CLIENT profile…");
+            var wasRunning = _official.IsRunning;
+            var ids = _profiles.Profiles.Select(p => p.Id).ToList();
+            var name = await _official.SyncProfileAsync(profile, ids, ct);
+
+            SetStage("Opening Minecraft Launcher…");
+            _official.OpenLauncher();
+
+            _notifications.Show(
+                NotificationKind.Info,
+                "Minecraft Launcher opened",
+                wasRunning
+                    ? $"Select \"{name}\" and press PLAY. The launcher was already open – if the profile is missing, close and reopen it."
+                    : $"Select \"{name}\" and press PLAY. Sign-in happens in the official launcher.");
         });
     }
 
@@ -257,7 +303,7 @@ public sealed class GameController : ObservableObject
                     LaunchFix.None);
             }
 
-            var runtime = await EnsureJavaAsync(requirement, verify: false, askFirst: true, ct);
+            var runtime = await EnsureJavaAsync(requirement, verify: false, ct);
 
             // 4. Process
             SetStage("Launching Minecraft…");
@@ -268,25 +314,12 @@ public sealed class GameController : ObservableObject
         });
     }
 
-    private async Task<JavaRuntime> EnsureJavaAsync(JavaRequirement requirement, bool verify, bool askFirst, CancellationToken ct)
+    private async Task<JavaRuntime> EnsureJavaAsync(JavaRequirement requirement, bool verify, CancellationToken ct)
     {
         var existing = _java.FindManagedRuntime(requirement.MajorVersion);
         if (existing is not null && !verify)
         {
             return existing;
-        }
-
-        if (existing is null && askFirst && !_settings.Current.InstallMissingRuntimeAutomatically)
-        {
-            var install = await _dialogs.ConfirmAsync(
-                "Java Runtime",
-                $"Java {requirement.MajorVersion} is required.\n\nGOAT CLIENT can download and install it automatically from the official Minecraft runtime distribution.",
-                "Install automatically",
-                "Cancel");
-            if (!install)
-            {
-                throw new OperationCanceledException();
-            }
         }
 
         var runtime = await _java.EnsureRuntimeAsync(requirement, verify, CreateProgress(), ct);
@@ -356,12 +389,15 @@ public sealed class GameController : ObservableObject
             LaunchFailedException launch => (launch.Message, launch.Fix),
             JavaRuntimeUnavailableException java => (java.Message, LaunchFix.InstallJava),
             DownloadFailedException download => ($"{download.Message}\nCheck your internet connection and try again.", LaunchFix.None),
+            OfficialLauncherNotFoundException notFound => (notFound.Message, LaunchFix.None),
             System.Net.Http.HttpRequestException => ("A server could not be reached. Check your internet connection and try again.", LaunchFix.None),
             AuthException auth => (auth.Message, auth.RequiresSignIn ? LaunchFix.SignIn : LaunchFix.None),
             _ => (ex.Message, LaunchFix.None),
         };
 
-        var header = title.StartsWith("Launching", StringComparison.Ordinal) ? "Minecraft could not be started." : $"{title} failed.";
+        var header = title.StartsWith("Launching", StringComparison.Ordinal) || title.StartsWith("Opening", StringComparison.Ordinal)
+            ? "Minecraft could not be started."
+            : $"{title} failed.";
         var message = $"Reason:\n{reason}";
 
         switch (fix)

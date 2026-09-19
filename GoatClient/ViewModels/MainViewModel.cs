@@ -64,7 +64,11 @@ public sealed class MainViewModel : ObservableObject
         Notifications = notifications;
 
         _navigation.PropertyChanged += OnNavigationChanged;
-        _settings.SettingsChanged += (_, _) => OnPropertyChanged(nameof(EnablePageTransitions));
+        _settings.SettingsChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(EnablePageTransitions));
+            OnAccountChanged();
+        };
 
         NavigateHomeCommand = CreateNavigateCommand(AppPage.Home);
         NavigatePlayCommand = CreateNavigateCommand(AppPage.Play);
@@ -117,13 +121,16 @@ public sealed class MainViewModel : ObservableObject
     public GameController Game { get; }
 
     /// <summary>Real Minecraft name when signed in – never a placeholder account.</summary>
-    public string AccountStatusText => _auth.Account?.Username ?? "Not connected";
+    public string AccountStatusText => _auth.Account?.Username
+        ?? (IsOfficialMode ? "Minecraft Launcher" : "Not connected");
+
+    private bool IsOfficialMode => _settings.Current.LaunchMode == LaunchMode.OfficialLauncher;
 
     public string AccountSubText => _auth.State switch
     {
         AuthState.SignedIn => "● Connected",
         AuthState.SessionExpired => "Sign in again",
-        _ => "Microsoft account",
+        _ => IsOfficialMode ? "Sign-in via official launcher" : "Microsoft account",
     };
 
     public bool IsAccountConnected => _auth.State == AuthState.SignedIn;

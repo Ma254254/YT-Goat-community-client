@@ -70,7 +70,11 @@ public sealed class PlayViewModel : ViewModelBase
         _profiles.ProfilesChanged += (_, _) => Refresh();
         _versions.VersionsChanged += (_, _) => Refresh();
         _java.RuntimesChanged += (_, _) => UpdateJava();
-        _settings.SettingsChanged += (_, _) => ApplyFilter();
+        _settings.SettingsChanged += (_, _) =>
+        {
+            ApplyFilter();
+            UpdateJava();
+        };
     }
 
     public GameController Game { get; }
@@ -257,6 +261,14 @@ public sealed class PlayViewModel : ViewModelBase
         }
 
         var version = _versions.Find(profile.MinecraftVersion);
+        if (!Game.IsDirectMode)
+        {
+            VersionSummary = version is null ? profile.MinecraftVersion : $"{version.TypeText} · {version.ReleaseDateText}";
+            JavaTitle = "Handled by the official Minecraft Launcher";
+            JavaDetail = "PLAY writes this profile (version, RAM, JVM arguments, game directory) into the official launcher and opens it. Sign in there.";
+            return;
+        }
+
         var required = version?.RequiredJavaMajor;
         int? major = profile.JavaPreference switch
         {

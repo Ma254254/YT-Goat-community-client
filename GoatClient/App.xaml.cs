@@ -99,12 +99,13 @@ public partial class App : Application
         var java = new JavaService(AppPaths.Runtime, downloads, logger);
         var installation = new MinecraftInstallationService(versions, downloads, logger);
         var launcher = new MinecraftLauncherService(installation, logger);
+        var official = new OfficialLauncherService(logger);
         var auth = new MicrosoftAuthService(http, new WindowsCredentialStore(), settings, store, logger);
         var skins = new SkinTextureLoader(http);
         var profiles = new ProfileService(store, settings, systemInfo, status, logger);
         var navigation = new NavigationService(logger);
         var bootstrapper = new LauncherBootstrapper(settings, profiles, java, versions, status, auth, logger);
-        var game = new GameController(profiles, versions, installation, java, launcher, auth, settings, dialogs, notifications, status, navigation, shell, logger, Dispatcher, _lifetime.Token);
+        var game = new GameController(profiles, versions, installation, java, launcher, official, auth, settings, dialogs, notifications, status, navigation, shell, logger, Dispatcher, _lifetime.Token);
 
         AsyncRelayCommand.GlobalErrorHandler = ex =>
         {
@@ -119,7 +120,7 @@ public partial class App : Application
         navigation.Register(AppPage.Play, () => new PlayViewModel(profiles, versions, java, systemInfo, settings, notifications, shell, status, navigation, game, logger));
         navigation.Register(AppPage.Profiles, () => new ProfilesViewModel(profiles, settings, versions, java, systemInfo, dialogs, notifications, logger));
         navigation.Register(AppPage.Skins, () => new SkinsViewModel(auth, skins, navigation, logger));
-        navigation.Register(AppPage.Settings, () => new SettingsViewModel(settings, profiles, versions, java, systemInfo, startup, shell, dialogs, notifications, logger));
+        navigation.Register(AppPage.Settings, () => new SettingsViewModel(settings, profiles, versions, official, systemInfo, startup, shell, dialogs, notifications, logger));
         navigation.Register(AppPage.Account, () => new AccountViewModel(auth, shell, skins, dialogs, notifications, navigation, logger));
 
         return main;

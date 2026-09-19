@@ -4,7 +4,7 @@ using System.Windows.Input;
 using GoatClient.Core.Commands;
 using GoatClient.Models;
 using GoatClient.Services.Dialogs;
-using GoatClient.Services.Java;
+using GoatClient.Services.Launch;
 using GoatClient.Services.Logging;
 using GoatClient.Services.Minecraft;
 using GoatClient.Services.Notifications;
@@ -16,9 +16,11 @@ namespace GoatClient.ViewModels;
 
 public sealed record ProfileChoice(Guid Id, string Name);
 
+public sealed record LaunchModeOption(LaunchMode Value, string Label, string Description);
+
 /// <summary>
-/// Settings page. Every change is saved automatically (short debounce);
-/// "Save" writes immediately.
+/// Settings page (LAUNCHER, MINECRAFT, APPEARANCE). Every change is saved automatically
+/// (short debounce); "Save" writes immediately.
 /// </summary>
 public sealed class SettingsViewModel : ViewModelBase
 {
@@ -27,7 +29,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly ISettingsService _settings;
     private readonly IProfileService _profiles;
     private readonly IMinecraftVersionService _versions;
-    private readonly IJavaService _java;
+    private readonly IOfficialLauncherService _official;
     private readonly ISystemInfoService _systemInfo;
     private readonly IStartupRegistrationService _startup;
     private readonly IShellService _shell;
@@ -39,35 +41,27 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _loading;
     private string _selectedCategory = "LAUNCHER";
 
+    private LaunchMode _launchMode;
     private bool _launchWithWindows;
     private bool _notificationsEnabled;
     private bool _confirmBeforeClosing;
+    private string _microsoftClientId = string.Empty;
     private string _minecraftDirectory = string.Empty;
     private string _defaultVersion = string.Empty;
     private Guid _defaultProfileId;
     private int _defaultRamMb;
     private string _defaultJvmArguments = string.Empty;
-    private bool _enablePageTransitions;
-    private bool _showHomeLogo;
-    private string _microsoftClientId = string.Empty;
     private bool _showSnapshots;
-    private bool _installMissingRuntime;
-    private string _downloadDirectory = string.Empty;
-    private int _maxParallelDownloads;
-    private int _downloadRetryCount;
-    private bool _isInstallingJava;
-    private string _javaInstallStatus = string.Empty;
+    private bool _enablePageTransitions;
 
     private string _saveState = "All changes saved";
     private bool _hasError;
-    private string _managedRuntimeText = string.Empty;
-    private string _systemJavaText = string.Empty;
 
     public SettingsViewModel(
         ISettingsService settings,
         IProfileService profiles,
         IMinecraftVersionService versions,
-        IJavaService java,
+        IOfficialLauncherService official,
         ISystemInfoService systemInfo,
         IStartupRegistrationService startup,
         IShellService shell,
@@ -78,7 +72,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _settings = settings;
         _profiles = profiles;
         _versions = versions;
-        _java = java;
+        _official = official;
         _systemInfo = systemInfo;
         _startup = startup;
         _shell = shell;
@@ -91,33 +85,51 @@ public sealed class SettingsViewModel : ViewModelBase
         SaveSettingsCommand = new AsyncRelayCommand(() => SaveNowAsync(showToast: true));
         BrowseMinecraftDirectoryCommand = new RelayCommand(BrowseMinecraftDirectory);
         OpenDataFolderCommand = new RelayCommand(() => OpenFolder(_settings.Current.MinecraftDirectory));
-        OpenRuntimeFolderCommand = new RelayCommand(() => OpenFolder(_java.RuntimeRoot));
-        RescanJavaCommand = new AsyncRelayCommand(RescanJavaAsync);
-        InstallJavaCommand = new AsyncRelayCommand(p => InstallJavaAsync(p), _ => !_isInstallingJava);
-        BrowseDownloadDirectoryCommand = new RelayCommand(BrowseDownloadDirectory);
+        OpenOfficialFolderCommand = new RelayCommand(() => OpenFolder(_official.MinecraftDirectory));
 
-        _java.RuntimesChanged += (_, _) => UpdateJavaTexts();
         _profiles.ProfilesChanged += (_, _) => RefreshProfileChoices();
     }
 
-    public IReadOnlyList<string> Categories { get; } = ["LAUNCHER", "MINECRAFT", "JAVA", "DOWNLOADS", "APPEARANCE"];
+    public IReadOnlyList<string> Categories { get; } = ["LAUNCHER", "MINECRAFT", "APPEARANCE"];
 
     public string SelectedCategory { get => _selectedCategory; set => SetProperty(ref _selectedCategory, value); }
 
+    public IReadOnlyList<LaunchModeOption> LaunchModes { get; } =
+    [
+        new(LaunchMode.OfficialLauncher, "Official Minecraft Launcher (recommended)", "PLAY creates a GOAT CLIENT profile in the official launcher and opens it. You sign in there – no extra setup."),
+        new(LaunchMode.Direct, "Direct launch (advanced)", "GOAT CLIENT installs and starts Minecraft itself. Requires your own Azure app ID approved for Minecraft."),
+    ];
+
     public IReadOnlyList<RamOption> RamOptions { get; }
 
-    public IReadOnlyList<MinecraftVersionInfo> Versions => _versions.Versions;
+    public IReadOnlyList<MinecraftVersionInfo> Versions => _versions.Filter(null, _settings.Current.ShowSnapshots);
 
     public ObservableCollection<ProfileChoice> ProfileChoices { get; } = new();
 
     public string MemorySummary => _systemInfo.MemorySummary;
 
-    // GENERAL
+    // LAUNCHER
+    public LaunchMode LaunchMode
+    {
+        get => _launchMode;
+        set
+        {
+            SetAndSave(ref _launchMode, value);
+            OnPropertyChanged(nameof(IsDirectMode));
+        }
+    }
+
+    public bool IsDirectMode => _launchMode == LaunchMode.Direct;
+
+    public string OfficialLauncherStatus => _official.StatusText;
+
     public bool LaunchWithWindows { get => _launchWithWindows; set => SetAndSave(ref _launchWithWindows, value); }
 
     public bool NotificationsEnabled { get => _notificationsEnabled; set => SetAndSave(ref _notificationsEnabled, value); }
 
     public bool ConfirmBeforeClosing { get => _confirmBeforeClosing; set => SetAndSave(ref _confirmBeforeClosing, value); }
+
+    public string MicrosoftClientId { get => _microsoftClientId; set => SetAndSave(ref _microsoftClientId, value); }
 
     // MINECRAFT
     public string MinecraftDirectory { get => _minecraftDirectory; set => SetAndSave(ref _minecraftDirectory, value); }
@@ -150,40 +162,10 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string DefaultJvmArguments { get => _defaultJvmArguments; set => SetAndSave(ref _defaultJvmArguments, value); }
 
-    public string MicrosoftClientId { get => _microsoftClientId; set => SetAndSave(ref _microsoftClientId, value); }
-
     public bool ShowSnapshots { get => _showSnapshots; set => SetAndSave(ref _showSnapshots, value); }
-
-    // JAVA
-    public bool InstallMissingRuntimeAutomatically { get => _installMissingRuntime; set => SetAndSave(ref _installMissingRuntime, value); }
-
-    public string JavaInstallStatus { get => _javaInstallStatus; private set => SetProperty(ref _javaInstallStatus, value); }
-
-    // DOWNLOADS
-    public string DownloadDirectory { get => _downloadDirectory; set => SetAndSave(ref _downloadDirectory, value); }
-
-    public IReadOnlyList<int> ParallelDownloadOptions { get; } = [1, 2, 4, 8, 12, 16];
-
-    public IReadOnlyList<int> RetryOptions { get; } = [0, 1, 2, 3, 5, 10];
-
-    public int MaxParallelDownloads { get => _maxParallelDownloads; set => SetAndSave(ref _maxParallelDownloads, value); }
-
-    public int DownloadRetryCount { get => _downloadRetryCount; set => SetAndSave(ref _downloadRetryCount, value); }
 
     // APPEARANCE
     public bool EnablePageTransitions { get => _enablePageTransitions; set => SetAndSave(ref _enablePageTransitions, value); }
-
-    public bool ShowHomeLogo { get => _showHomeLogo; set => SetAndSave(ref _showHomeLogo, value); }
-
-    // JAVA (read-only information)
-    public string RuntimeDirectory => _java.RuntimeRoot;
-
-    public string ManagedRuntimeText { get => _managedRuntimeText; private set => SetProperty(ref _managedRuntimeText, value); }
-
-    public string SystemJavaText { get => _systemJavaText; private set => SetProperty(ref _systemJavaText, value); }
-
-    public string ProvisioningText =>
-        "GOAT CLIENT downloads the Java runtime required by each Minecraft version from Mojang's official runtime distribution and verifies every file (SHA-1).";
 
     public string SaveState { get => _saveState; private set => SetProperty(ref _saveState, value); }
 
@@ -197,18 +179,12 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public ICommand OpenDataFolderCommand { get; }
 
-    public ICommand OpenRuntimeFolderCommand { get; }
-
-    public ICommand RescanJavaCommand { get; }
-
-    public ICommand InstallJavaCommand { get; }
-
-    public ICommand BrowseDownloadDirectoryCommand { get; }
+    public ICommand OpenOfficialFolderCommand { get; }
 
     public override void OnNavigatedTo()
     {
         LoadFromSettings();
-        UpdateJavaTexts();
+        OnPropertyChanged(nameof(OfficialLauncherStatus));
     }
 
     public override void OnNavigatedFrom()
@@ -228,21 +204,17 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             var s = _settings.Current;
+            LaunchMode = s.LaunchMode;
             LaunchWithWindows = _startup.IsEnabled(); // Registry is the source of truth.
             NotificationsEnabled = s.Notifications;
             ConfirmBeforeClosing = s.ConfirmBeforeClosing;
+            MicrosoftClientId = s.MicrosoftClientId;
             MinecraftDirectory = s.MinecraftDirectory;
             DefaultVersion = s.DefaultVersion;
             DefaultRamMb = s.DefaultRamMb;
             DefaultJvmArguments = s.DefaultJvmArguments;
-            EnablePageTransitions = s.EnablePageTransitions;
-            ShowHomeLogo = s.ShowHomeLogo;
-            MicrosoftClientId = s.MicrosoftClientId;
             ShowSnapshots = s.ShowSnapshots;
-            InstallMissingRuntimeAutomatically = s.InstallMissingRuntimeAutomatically;
-            DownloadDirectory = s.DownloadDirectory;
-            MaxParallelDownloads = s.MaxParallelDownloads;
-            DownloadRetryCount = s.DownloadRetryCount;
+            EnablePageTransitions = s.EnablePageTransitions;
             RefreshProfileChoices();
             OnPropertyChanged(nameof(Versions));
         }
@@ -308,18 +280,12 @@ public sealed class SettingsViewModel : ViewModelBase
         var directory = MinecraftDirectory?.Trim() ?? string.Empty;
         if (directory.Length == 0 || !Path.IsPathFullyQualified(directory))
         {
-            return "Minecraft directory: please enter a full path (for example C:\\Games\\Minecraft).";
+            return "Game directory: please enter a full path (for example C:\\Games\\GoatClient).";
         }
 
         if (directory.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
         {
-            return "Minecraft directory contains invalid characters.";
-        }
-
-        var downloads = DownloadDirectory?.Trim() ?? string.Empty;
-        if (downloads.Length == 0 || !Path.IsPathFullyQualified(downloads))
-        {
-            return "Download directory: please enter a full path.";
+            return "Game directory contains invalid characters.";
         }
 
         var clientId = MicrosoftClientId?.Trim() ?? string.Empty;
@@ -354,32 +320,28 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             var directory = MinecraftDirectory.Trim();
             Directory.CreateDirectory(directory);
-            Directory.CreateDirectory(DownloadDirectory.Trim());
 
             ApplyStartupRegistration();
 
             var s = _settings.Current.Clone();
+            s.LaunchMode = LaunchMode;
             s.LaunchWithWindows = LaunchWithWindows;
             s.Notifications = NotificationsEnabled;
             s.ConfirmBeforeClosing = ConfirmBeforeClosing;
+            s.MicrosoftClientId = MicrosoftClientId?.Trim() ?? string.Empty;
             s.MinecraftDirectory = directory;
             s.DefaultVersion = DefaultVersion;
             s.DefaultProfileId = DefaultProfileId == Guid.Empty ? null : DefaultProfileId;
             s.DefaultRamMb = DefaultRamMb;
             s.DefaultJvmArguments = DefaultJvmArguments?.Trim() ?? string.Empty;
-            s.EnablePageTransitions = EnablePageTransitions;
-            s.ShowHomeLogo = ShowHomeLogo;
-            s.MicrosoftClientId = MicrosoftClientId?.Trim() ?? string.Empty;
             s.ShowSnapshots = ShowSnapshots;
-            s.InstallMissingRuntimeAutomatically = InstallMissingRuntimeAutomatically;
-            s.DownloadDirectory = DownloadDirectory.Trim();
-            s.MaxParallelDownloads = MaxParallelDownloads;
-            s.DownloadRetryCount = DownloadRetryCount;
+            s.EnablePageTransitions = EnablePageTransitions;
 
             await _settings.SaveAsync(s);
 
             SaveState = $"All changes saved · {DateTime.Now:HH:mm:ss}";
             HasError = false;
+            OnPropertyChanged(nameof(Versions));
             if (showToast)
             {
                 _notifications.Show(NotificationKind.Success, "Settings saved", "Your settings were written to settings.json.");
@@ -415,68 +377,9 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    private void UpdateJavaTexts()
-    {
-        var info = _java.Info;
-        ManagedRuntimeText = info.HasManagedRuntime
-            ? string.Join(Environment.NewLine, info.ManagedRuntimes.Select(r => $"{r.DisplayName} – {r.HomeDirectory}"))
-            : "No managed runtime installed yet – it is installed automatically with Minecraft.";
-
-        SystemJavaText = info.SystemRuntime is null
-            ? "No system Java detected. That is fine – GOAT CLIENT does not need one."
-            : $"{info.SystemRuntime.DisplayName} (informational only – GOAT CLIENT does not depend on it)";
-    }
-
-    private async Task InstallJavaAsync(object? parameter)
-    {
-        if (!int.TryParse(parameter?.ToString(), out var major))
-        {
-            return;
-        }
-
-        _isInstallingJava = true;
-        RelayCommand.Refresh();
-        var progress = new Progress<TransferProgress>(p => JavaInstallStatus = p.BytesTotal > 1
-            ? $"{p.Stage} – {GameController.FormatBytes(p.BytesDone)} / {GameController.FormatBytes(p.BytesTotal)}"
-            : p.Stage);
-        try
-        {
-            var runtime = await _java.EnsureRuntimeAsync(new JavaRequirement(major, null), verify: true, progress, CancellationToken.None);
-            JavaInstallStatus = $"Java {major} verified: {runtime.DisplayName}";
-            _notifications.Show(NotificationKind.Success, $"Java {major} is ready.", runtime.HomeDirectory);
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Java {major} installation failed.", ex);
-            JavaInstallStatus = ex.Message;
-            _notifications.Show(NotificationKind.Error, $"Java {major} could not be installed", ex.Message);
-        }
-        finally
-        {
-            _isInstallingJava = false;
-            RelayCommand.Refresh();
-            UpdateJavaTexts();
-        }
-    }
-
-    private void BrowseDownloadDirectory()
-    {
-        var folder = _dialogs.PickFolder(DownloadDirectory, "Choose the download directory");
-        if (folder is not null)
-        {
-            DownloadDirectory = folder;
-        }
-    }
-
-    private async Task RescanJavaAsync()
-    {
-        await _java.ScanAsync();
-        _notifications.Show(NotificationKind.Info, "Java runtimes checked", ManagedRuntimeText);
-    }
-
     private void BrowseMinecraftDirectory()
     {
-        var folder = _dialogs.PickFolder(MinecraftDirectory, "Choose the Minecraft directory");
+        var folder = _dialogs.PickFolder(MinecraftDirectory, "Choose the game directory root");
         if (folder is not null)
         {
             MinecraftDirectory = folder;

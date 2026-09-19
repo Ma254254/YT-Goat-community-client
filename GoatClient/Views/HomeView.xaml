@@ -46,7 +46,10 @@
                                 <Button Style="{StaticResource ModernButton}" Content="Configure" Command="{Binding OpenPlayCommand}" Margin="12,0,0,0" Padding="22,13" />
                             </StackPanel>
                             <TextBlock Style="{StaticResource MutedText}" FontSize="12" Margin="0,12,0,0"
-                                       Visibility="{Binding IsSignedIn, Converter={StaticResource InverseBoolToVisibility}}">
+                                       Text="PLAY opens the official Minecraft Launcher with your GOAT CLIENT profile selected."
+                                       Visibility="{Binding ShowOfficialHint, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock Style="{StaticResource MutedText}" FontSize="12" Margin="0,12,0,0"
+                                       Visibility="{Binding ShowSignInHint, Converter={StaticResource BoolToVisibility}}">
                                 <Run Text="Sign in with Microsoft to play." />
                                 <Hyperlink Command="{Binding OpenAccountCommand}" Foreground="{StaticResource AccentBrush}">Go to Account</Hyperlink>
                             </TextBlock>
@@ -92,7 +95,8 @@
                         </StackPanel>
                         <TextBlock Text="Files are downloaded from official Mojang servers and verified with SHA-1." Style="{StaticResource MutedText}" Margin="0,12,0,12" />
                         <StackPanel Orientation="Horizontal">
-                            <Button Style="{StaticResource ModernButton}" Content="Repair installation" Command="{Binding Game.RepairCommand}" />
+                            <Button Style="{StaticResource ModernButton}" Content="Repair installation" Command="{Binding Game.RepairCommand}"
+                                    Visibility="{Binding Game.IsDirectMode, Converter={StaticResource BoolToVisibility}}" />
                             <Button Style="{StaticResource GhostButton}" Content="Manage profiles" Command="{Binding OpenProfilesCommand}" Margin="8,0,0,0" />
                         </StackPanel>
                     </StackPanel>

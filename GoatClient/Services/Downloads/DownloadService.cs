@@ -130,7 +130,7 @@ public sealed class DownloadService : IDownloadService
             }
         }
 
-        var maxParallel = Math.Clamp(_settings.Current.MaxParallelDownloads, 1, 32);
+        const int maxParallel = 8;
         await Parallel.ForEachAsync(missing, new ParallelOptions { MaxDegreeOfParallelism = maxParallel, CancellationToken = cancellationToken }, async (request, ct) =>
         {
             await DownloadWithRetryAsync(request, delta =>
@@ -145,7 +145,8 @@ public sealed class DownloadService : IDownloadService
         Report(true);
     }
 
-    private int RetryCount => Math.Clamp(_settings.Current.DownloadRetryCount, 0, 10);
+    /// <summary>Retries per file after the first attempt.</summary>
+    private const int RetryCount = 3;
 
     private async Task DownloadWithRetryAsync(DownloadRequest request, Action<long> onBytes, CancellationToken cancellationToken)
     {
@@ -245,13 +246,9 @@ public sealed class DownloadService : IDownloadService
         File.Move(partPath, request.Path, overwrite: true);
     }
 
-    private string GetPartPath(DownloadRequest request)
+    private static string GetPartPath(DownloadRequest request)
     {
-        var directory = _settings.Current.DownloadDirectory;
-        if (string.IsNullOrWhiteSpace(directory) || !Path.IsPathFullyQualified(directory))
-        {
-            directory = Core.Constants.AppPaths.Downloads;
-        }
+        var directory = Core.Constants.AppPaths.Downloads;
 
         var key = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(request.Path).ToLowerInvariant()))).ToLowerInvariant();
         return Path.Combine(directory, key + ".part");
